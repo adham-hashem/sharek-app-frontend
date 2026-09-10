@@ -1,0 +1,96 @@
+import { useEffect, useState } from 'react';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { AuthProvider, useAuth } from '@/lib/auth';
+import { useFonts } from 'expo-font';
+import {
+  Cairo_400Regular,
+  Cairo_600SemiBold,
+  Cairo_700Bold,
+  Cairo_800ExtraBold,
+} from '@expo-google-fonts/cairo';
+import { Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import * as SplashScreen from 'expo-splash-screen';
+import { I18nManager, View } from 'react-native';
+import { colors } from '@/lib/theme';
+
+SplashScreen.preventAutoHideAsync();
+
+function RootNav() {
+  const { loading, profile } = useAuth();
+
+  if (loading) {
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)/welcome" />
+      <Stack.Screen name="(auth)/language" />
+      <Stack.Screen name="(auth)/register" />
+      <Stack.Screen name="(auth)/login" />
+      <Stack.Screen name="reset-password" />
+      <Stack.Screen name="(auth)/role" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="settings" />
+      <Stack.Screen name="donate-money" />
+      <Stack.Screen name="donate-sharek" />
+      <Stack.Screen name="admin" />
+      <Stack.Screen name="history" />
+      <Stack.Screen name="privacy" />
+      <Stack.Screen name="+not-found" />
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
+  useFrameworkReady();
+
+  const [fontsLoaded, fontError] = useFonts({
+    'Cairo-Regular': Cairo_400Regular,
+    'Cairo-SemiBold': Cairo_600SemiBold,
+    'Cairo-Bold': Cairo_700Bold,
+    'Cairo-ExtraBold': Cairo_800ExtraBold,
+    'Inter-Regular': Inter_400Regular,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+  });
+
+  const [langReady, setLangReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const saved = await AsyncStorage.getItem('sharek_lang');
+      const lang = saved === 'en' ? 'en' : 'ar';
+      const rtl = lang === 'ar';
+      if (I18nManager.isRTL !== rtl) {
+        I18nManager.forceRTL(rtl);
+      }
+      setLangReady(true);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && langReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError, langReady]);
+
+  if (!fontsLoaded || !langReady || fontError) {
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  }
+
+  return (
+    <AuthProvider>
+      <RootNav />
+      <StatusBar style="dark" />
+    </AuthProvider>
+  );
+}
+
+export const unstable_settings = {
+  initialRouteName: 'index',
+};

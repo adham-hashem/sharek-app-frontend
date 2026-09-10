@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "SHARek",
+    "slug": "sharek",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/image copy.png",
+    "splash": {
+      "image": "./assets/images/image copy.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "scheme": "sharek",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sharek.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "يستخدم SHAREk موقعك للعثور على الوجبات والمتبرعين القريبين وتتبع المطابقة النشطة.",
+        "NSCameraUsageDescription": "يستخدم SHAREk الكاميرا لإضافة صورة للطعام المتاح.",
+        "NSPhotoLibraryUsageDescription": "يستخدم SHAREk الصور لاختيار صورة للطعام المتاح."
+      }
+    },
+    "android": {
+      "package": "com.sharek.app",
+      "versionCode": 1,
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "VIBRATE", "POST_NOTIFICATIONS"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/image copy.png"
+    },
+    "plugins": ["expo-router", "expo-font", "expo-web-browser", "expo-notifications"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
