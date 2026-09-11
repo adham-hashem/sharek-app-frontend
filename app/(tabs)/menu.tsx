@@ -5,27 +5,37 @@ import {
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
-import { supabase, UserRole } from '@/lib/supabase';
+import { supabase, UserRole, UserMode } from '@/lib/supabase';
 import { router } from 'expo-router';
 import { ContributorBadges } from '@/components/ContributorBadges';
-import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { AchievementBadgeDisplay, AchievementProgress, AllBadgesRow } from '@/components/AchievementBadge';
 import {
   User, Edit3, Shield, Settings as SettingsIcon, LogOut,
-  ChevronLeft, X, Heart, HandHeart, Building2, UtensilsCrossed, Hotel, Check, Star, Phone, Mail, MapPin,
-  MessageCircle, History,
+  ChevronLeft, X, Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel, Check, Star, Phone, Mail, MapPin,
+  MessageCircle, History, BadgeCheck, ShieldCheck, Book,
 } from 'lucide-react-native';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 const roleConfig: Array<{ role: UserRole; icon: React.ReactNode; labelKey: string; color: string }> = [
   { role: 'needer', icon: <Heart size={22} color={colors.coral} />, labelKey: 'modeNeeder', color: colors.coral },
   { role: 'donor', icon: <HandHeart size={22} color={colors.green} />, labelKey: 'modeDonor', color: colors.green },
   { role: 'charity', icon: <Building2 size={22} color={colors.primary} />, labelKey: 'roleCharity', color: colors.primary },
+  { role: 'organization', icon: <Building size={22} color={colors.brownLight} />, labelKey: 'roleOrganization', color: colors.brownLight },
   { role: 'restaurant', icon: <UtensilsCrossed size={22} color={colors.goldenDark} />, labelKey: 'roleRestaurant', color: colors.goldenDark },
   { role: 'hotel', icon: <Hotel size={22} color={colors.brownLight} />, labelKey: 'roleHotel', color: colors.brownLight },
 ];
 
+const ORG_ROLES: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
+
+const modeConfig: Array<{ mode: UserMode; icon: React.ReactNode; labelKey: string; color: string }> = [
+  { mode: 'needer', icon: <Heart size={22} color={colors.coral} />, labelKey: 'modeNeeder', color: colors.coral },
+  { mode: 'donor', icon: <HandHeart size={22} color={colors.green} />, labelKey: 'modeDonor', color: colors.green },
+];
+
 export default function MenuScreen() {
-  const { profile, t, language, rtl, signOut, updateRole, updateProfile, user } = useAuth();
+  const { profile, t, language, rtl, signOut, updateRole, updateMode, updateProfile, user } = useAuth();
   const [roleModal, setRoleModal] = useState(false);
+  const [modeModal, setModeModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editName, setEditName] = useState('');
@@ -33,7 +43,6 @@ export default function MenuScreen() {
   const [editCountry, setEditCountry] = useState('');
   const [unread, setUnread] = useState(0);
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
-  const isAdmin = user?.app_metadata?.is_admin === true || user?.app_metadata?.role === 'admin';
 
   useEffect(() => {
     if (!user) return;
@@ -59,6 +68,17 @@ export default function MenuScreen() {
     setBusy(false);
     if (error) { Alert.alert(t('errorGeneric')); return; }
     setRoleModal(false);
+    if (ORG_ROLES.includes(role) && !profile?.mode) {
+      setModeModal(true);
+    }
+  };
+
+  const pickMode = async (mode: UserMode) => {
+    setBusy(true);
+    const { error } = await updateMode(mode);
+    setBusy(false);
+    if (error) { Alert.alert(t('errorGeneric')); return; }
+    setModeModal(false);
   };
 
   const openEditProfile = () => {
@@ -87,7 +107,7 @@ export default function MenuScreen() {
       t('signOut') + '?',
       [
         { text: t('back'), style: 'cancel' },
-        { text: t('signOut'), style: 'destructive', onPress: () => signOut() },
+        { text: t('signOut'), style: 'destructive', onPress: async () => { await signOut(); router.dismissAll(); router.replace('/(auth)/welcome'); } },
       ]
     );
   };
@@ -136,17 +156,21 @@ export default function MenuScreen() {
   );
 
   const currentRole = roleConfig.find(r => r.role === profile?.role);
-  const isVerified = Boolean((profile as unknown as { is_verified?: boolean } | null)?.is_verified);
+  const isOrgRole = profile && ORG_ROLES.includes(profile.role);
+  const currentMode = isOrgRole ? modeConfig.find(m => m.mode === profile?.mode) : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
       <View style={styles.headerBg}>
         <Image source={require('../../assets/images/image copy.png')} style={styles.headerLogo} resizeMode="contain" />
-        <View style={styles.nameRow}>
-          <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm }}>
+          <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
             {profile?.full_name ?? 'SHARek'}
           </Text>
-          {isVerified && <VerifiedBadge language={language} size={18} />}
+          {profile?.is_verified && <VerifiedBadge language={language} size={18} />}
+          {profile && (profile.contributor_level ?? 0) > 0 && (
+            <AchievementBadgeDisplay level={profile.contributor_level ?? 0} language={language} t={t} size={16} />
+          )}
         </View>
         <Text style={[typography.caption, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
           {profile?.email}
@@ -192,6 +216,23 @@ export default function MenuScreen() {
 
       {profile && (
         <ContributorBadges profile={profile} t={t} font={font} />
+      )}
+
+      {profile && (
+        <View style={styles.achievementCard}>
+          <Text style={[typography.small, { color: colors.brownMuted, marginBottom: spacing.sm, fontFamily: `${font}SemiBold` }]}>
+            {t('achievementProgress')}
+          </Text>
+          <AchievementProgress
+            level={profile.contributor_level ?? 0}
+            completedShares={profile.meals_helped ?? 0}
+            language={language}
+            t={t}
+          />
+          <View style={{ marginTop: spacing.md }}>
+            <AllBadgesRow level={profile.contributor_level ?? 0} language={language} t={t} />
+          </View>
+        </View>
       )}
 
       <View style={styles.menuSection}>
@@ -240,6 +281,26 @@ export default function MenuScreen() {
           bg={colors.greenBg}
           showChevron
         />
+        {isOrgRole && (
+          <MenuItem
+            icon={currentMode?.icon ?? <Heart size={20} color={colors.coral} />}
+            label={t('selectMode')}
+            onPress={() => setModeModal(true)}
+            color={colors.coral}
+            bg={colors.errorBg}
+            showChevron
+          />
+        )}
+        {profile?.religion === 'muslim' && (
+          <MenuItem
+            icon={<Book size={20} color={colors.green} />}
+            label={t('quranMushaf')}
+            onPress={() => router.push('/quran')}
+            color={colors.green}
+            bg={colors.greenBg}
+            showChevron
+          />
+        )}
         <MenuItem
           icon={<SettingsIcon size={20} color={colors.brownLight} />}
           label={t('settings')}
@@ -248,15 +309,41 @@ export default function MenuScreen() {
           bg={colors.surfaceMuted}
           showChevron
         />
-        {isAdmin && (
-          <MenuItem
-            icon={<Shield size={20} color={colors.primary} />}
-            label={t('adminPricing')}
-            onPress={() => router.push('/admin' as never)}
-            color={colors.primary}
-            bg={colors.surfaceAlt}
-            showChevron
-          />
+        <MenuItem
+          icon={<Heart size={20} color={colors.goldenDark} />}
+          label={t('supportSharekHeart')}
+          onPress={() => router.push('/support')}
+          color={colors.goldenDark}
+          bg={colors.warningBg}
+          showChevron
+        />
+        <MenuItem
+          icon={<BadgeCheck size={20} color="#1DA1F2" />}
+          label={profile?.is_verified ? t('verifiedAccount') : t('getVerified')}
+          onPress={() => router.push('/verify-account')}
+          color="#1DA1F2"
+          bg="rgba(29, 161, 242, 0.1)"
+          showChevron
+        />
+        {profile?.is_admin && (
+          <>
+            <MenuItem
+              icon={<ShieldCheck size={20} color={colors.brown} />}
+              label={t('adminVerification')}
+              onPress={() => router.push('/admin-verification')}
+              color={colors.brown}
+              bg={colors.surfaceMuted}
+              showChevron
+            />
+            <MenuItem
+              icon={<Star size={20} color={colors.goldenDark} />}
+              label={t('adminRatings')}
+              onPress={() => router.push('/admin-ratings')}
+              color={colors.goldenDark}
+              bg={colors.warningBg}
+              showChevron
+            />
+          </>
         )}
       </View>
 
@@ -300,6 +387,40 @@ export default function MenuScreen() {
                     {t(labelKey)}
                   </Text>
                   {profile?.role === role && <Check size={20} color={color} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={modeModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                {t('selectMode')}
+              </Text>
+              <TouchableOpacity onPress={() => setModeModal(false)}>
+                <X size={22} color={colors.brownMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[typography.caption, { color: colors.brownMuted, marginBottom: spacing.md, fontFamily: `${font}Regular` }]}>
+              {t('selectModeSub')}
+            </Text>
+            <View style={styles.roleList}>
+              {modeConfig.map(({ mode, icon, labelKey, color }) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[styles.roleOption, profile?.mode === mode && { borderColor: color, borderWidth: 2 }]}
+                  onPress={() => pickMode(mode)}
+                  disabled={busy}
+                >
+                  {icon}
+                  <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: `${font}Regular` }]}>
+                    {t(labelKey)}
+                  </Text>
+                  {profile?.mode === mode && <Check size={20} color={color} />}
                 </TouchableOpacity>
               ))}
             </View>
@@ -374,14 +495,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerLogo: { width: 72, height: 72 },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: spacing.sm,
-    maxWidth: '100%',
-  },
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     backgroundColor: colors.white, borderRadius: radius.pill,
@@ -428,6 +541,10 @@ const styles = StyleSheet.create({
   modalSaveBtn: {
     backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md,
     alignItems: 'center', marginTop: spacing.sm,
+  },
+  achievementCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
+    marginHorizontal: spacing.lg, marginTop: spacing.lg, borderWidth: 1.5, borderColor: colors.border,
   },
   roleList: { gap: spacing.sm },
   roleOption: {

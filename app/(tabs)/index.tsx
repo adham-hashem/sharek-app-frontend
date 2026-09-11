@@ -10,12 +10,14 @@ import { colors, spacing, radius, typography } from '@/lib/theme';
 import {
   Heart, HandHeart, MapPin, LocateFixed, Search, X,
   Clock, UtensilsCrossed, CheckCircle2, Navigation, Sliders,
-  MessageCircle,
+  MessageCircle, Bell,
 } from 'lucide-react-native';
+import { apiFetch, apiPost } from '@/lib/api';
 import { supabase, MealRequest, FoodDonation } from '@/lib/supabase';
 import { router } from 'expo-router';
 import { ensureLocationPermission, getCurrentLocation, haversineKm, Coords } from '@/lib/location';
-import { apiFetch, apiPost } from '@/lib/api';
+import { SuggestedMeals } from '@/components/SuggestedMeals';
+import { getUnreadCount, createNotification } from '@/lib/notifications';
 
 type FilterType = 'all' | 'requests' | 'food';
 type SelectedItem =
@@ -26,7 +28,7 @@ type SelectedItem =
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const isTablet = SCREEN_WIDTH >= 768;
-const MAP_HEIGHT = isTablet ? 380 : Math.max(300, Math.min(430, SCREEN_HEIGHT * 0.38));
+const MAP_HEIGHT = isTablet ? 380 : SCREEN_HEIGHT * 0.38;
 
 const LEAFLET_HTML = `<!DOCTYPE html>
 <html>
@@ -155,20 +157,11 @@ function timeAgo(iso: string, lang: 'ar' | 'en'): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return lang === 'ar' ? 'الآن' : 'just now';
-  if (mins < 60) return lang === 'ar' ? `قبل ${mins} ${lang === 'ar' ? 'دقيقة' : 'min'}` : `${mins} min ago`;
+  if (mins < 60) return lang === 'ar' ? `قبل ${mins} دقيقة` : `${mins} min ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs} ${lang === 'ar' ? 'ساعة' : 'hr'}${lang === 'ar' ? '' : ' ago'}`;
   const days = Math.floor(hrs / 24);
   return `${days} ${lang === 'ar' ? 'يوم' : 'd'}${lang === 'ar' ? '' : ' ago'}`;
-}
-
-function timeUntil(iso: string, lang: 'ar' | 'en'): string {
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return lang === 'ar' ? 'منتهي' : 'expired';
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins} ${lang === 'ar' ? 'دقيقة' : 'min'}`;
-  const hrs = Math.floor(mins / 60);
-  return `${hrs} ${lang === 'ar' ? 'ساعة' : 'hr'}`;
 }
 
 function LiveCountdown({ iso, lang, style }: { iso: string; lang: 'ar' | 'en'; style?: any }) {
@@ -193,19 +186,26 @@ function LiveCountdown({ iso, lang, style }: { iso: string; lang: 'ar' | 'en'; s
 export default function MapScreen() {
   const { t, language, user, profile } = useAuth();
   const insets = useSafeAreaInsets();
+  const effectiveMode: 'needer' | 'donor' =
+    profile?.role === 'needer' || profile?.mode === 'needer' ? 'needer' : 'donor';
   const [location, setLocation] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(true);
   const [requests, setRequests] = useState<MealRequest[]>([]);
   const [donations, setDonations] = useState<FoodDonation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dataError, setDataError] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
+  useEffect(() => {
+    if (profile && filter === 'all') {
+      setFilter(effectiveMode === 'needer' ? 'food' : 'requests');
+    }
+  }, [profile, effectiveMode]);
   const [selected, setSelected] = useState<SelectedItem>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [claimedDonation, setClaimedDonation] = useState<FoodDonation | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
   const webViewRef = useRef<WebView>(null);
   const iframeRef = useRef<any>(null);
   const bottomAnim = useRef(new Animated.Value(0)).current;
@@ -266,13 +266,12 @@ export default function MapScreen() {
       return;
     }
     setLoading(true);
-    setDataError(false);
     try {
-      const { items: nearby } = await apiFetch<{ items: Array<{ item_type: 'request' | 'food'; item_id: string }> }>(
+      const { items: nearby } = await apiFetch<any>(
         `/v1/map/nearby?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}&radius_km=25`,
       );
-      const requestIds = nearby.filter(item => item.item_type === 'request').map(item => item.item_id);
-      const foodIds = nearby.filter(item => item.item_type === 'food').map(item => item.item_id);
+      const requestIds = nearby.filter((item) => item.item_type === 'request').map((item) => item.item_id);
+      const foodIds = nearby.filter((item) => item.item_type === 'food').map((item) => item.item_id);
       const [r, f] = await Promise.all([
         requestIds.length
           ? supabase.rpc('get_nearby_request_details', { p_ids: requestIds })
@@ -287,7 +286,6 @@ export default function MapScreen() {
     } catch {
       setRequests([]);
       setDonations([]);
-      setDataError(true);
     } finally {
       setLoading(false);
     }
@@ -304,27 +302,31 @@ export default function MapScreen() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_requests' }, loadData)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'food_donations' }, loadData)
       .subscribe();
-    return () => { sub.unsubscribe(); };
+    return () => { supabase.removeChannel(sub); };
   }, [loadLocation, loadData]);
 
-  const nearbyRequests = useMemo(() => location
-    ? requests.filter(r => haversineKm(location, { latitude: r.latitude, longitude: r.longitude }) <= 25)
-    : [], [requests, location]);
-  const nearbyDonations = useMemo(() => location
-    ? donations.filter(d => haversineKm(location, { latitude: d.latitude, longitude: d.longitude }) <= 25)
-    : [], [donations, location]);
+  useEffect(() => {
+    if (!user) return;
+    const loadUnread = async () => {
+      const count = await getUnreadCount(user.id);
+      setUnreadNotifs(count);
+    };
+    loadUnread();
+    const sub = supabase
+      .channel('notif_unread_count')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`,
+      }, loadUnread)
+      .subscribe();
+    return () => { supabase.removeChannel(sub); };
+  }, [user]);
 
   useEffect(() => {
-    sendMapMessage({ type: 'map-update', data: { requests: nearbyRequests, donations: nearbyDonations } });
-  }, [nearbyRequests, nearbyDonations, sendMapMessage, mapReady]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      const now = Date.now();
-      setDonations(current => current.filter(d => new Date(d.expires_at).getTime() > now));
-    }, 1_000);
-    return () => clearInterval(id);
-  }, []);
+    sendMapMessage({ type: 'map-update', data: { requests, donations } });
+  }, [requests, donations, sendMapMessage, mapReady]);
 
   const showBottomCard = useCallback((item: SelectedItem) => {
     setSelected(item);
@@ -357,7 +359,7 @@ export default function MapScreen() {
   }, [showBottomCard]);
 
   const filteredRequests = useMemo(() => {
-    return nearbyRequests.filter(r => {
+    return requests.filter(r => {
       if (filter === 'food') return false;
       if (search) {
         const s = search.toLowerCase();
@@ -365,10 +367,10 @@ export default function MapScreen() {
       }
       return true;
     });
-  }, [nearbyRequests, filter, search]);
+  }, [requests, filter, search]);
 
   const filteredDonations = useMemo(() => {
-    return nearbyDonations.filter(d => {
+    return donations.filter(d => {
       if (filter === 'requests') return false;
       if (search) {
         const s = search.toLowerCase();
@@ -376,7 +378,7 @@ export default function MapScreen() {
       }
       return true;
     });
-  }, [nearbyDonations, filter, search]);
+  }, [donations, filter, search]);
 
   const sortedItems = useMemo(() => {
     const items: Array<{
@@ -403,7 +405,7 @@ export default function MapScreen() {
       return;
     }
     setActionBusy(true);
-    const { error: offerErr } = await apiPost<{ id: string }>(`/v1/meal-requests/${req.id}/offers`, {
+    const { error: offerErr } = await apiPost<any>(`/v1/meal-requests/${req.id}/offers`, {
       latitude: location.latitude,
       longitude: location.longitude,
     }).then(() => ({ error: null })).catch((error) => ({ error }));
@@ -413,13 +415,20 @@ export default function MapScreen() {
       return;
     }
     setActionResult(t('offerSent'));
+    createNotification(
+      req.user_id,
+      'new_offer',
+      language === 'ar' ? `عرض جديد من ${profile?.full_name ?? ''}` : `New offer from ${profile?.full_name ?? ''}`,
+      { match_id: req.id, other_user_id: user.id, meals: req.meals },
+      language,
+    );
     setTimeout(() => { hideBottomCard(); loadData(); }, 1500);
   };
 
   const claimFood = async (donation: FoodDonation) => {
     if (!user) return;
     setActionBusy(true);
-    const { error } = await apiPost<{ id: string }>(`/v1/food-donations/${donation.id}/claim`, location ? {
+    const { error } = await apiPost<any>(`/v1/food-donations/${donation.id}/claim`, location ? {
       latitude: location.latitude,
       longitude: location.longitude,
     } : undefined)
@@ -431,6 +440,13 @@ export default function MapScreen() {
     }
     setActionResult(t('claimSuccess'));
     setClaimedDonation(donation);
+    createNotification(
+      donation.user_id,
+      'food_claimed',
+      language === 'ar' ? `تم طلب وجبتك: ${donation.food_name}` : `Your meal was claimed: ${donation.food_name}`,
+      { food_donation_id: donation.id, other_user_id: user.id, food_name: donation.food_name },
+      language,
+    );
     setTimeout(() => { loadData(); }, 1500);
   };
 
@@ -442,17 +458,6 @@ export default function MapScreen() {
 
   const selectedRequest = selected?.type === 'request' ? requests.find(r => r.id === selected.id) : null;
   const selectedDonation = selected?.type === 'food' ? donations.find(d => d.id === selected.id) : null;
-
-  const suggestedDonations = useMemo(() => {
-    return donations
-      .map(d => ({
-        donation: d,
-        dist: location ? haversineKm(location, { latitude: d.latitude, longitude: d.longitude }) : null,
-      }))
-      .filter(x => x.dist === null || x.dist <= 25)
-      .sort((a, b) => (a.dist ?? 9999) - (b.dist ?? 9999))
-      .slice(0, 10);
-  }, [donations, location]);
 
   const FilterChip = ({ type, label, icon }: { type: FilterType; label: string; icon: React.ReactNode }) => (
     <TouchableOpacity
@@ -467,250 +472,210 @@ export default function MapScreen() {
     </TouchableOpacity>
   );
 
+  const TAB_BAR_HEIGHT = Platform.OS === 'web' ? 62 : 66;
+
   return (
     <View style={styles.container}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={{ paddingBottom: (selected ? 300 : spacing.xxl) + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: TAB_BAR_HEIGHT + spacing.xl + insets.bottom }}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
       >
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <View style={styles.logoCenter}>
-          <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.push('/notifications')}
+            style={styles.bellBtn}
+            activeOpacity={0.7}
+          >
+            <Bell size={22} color={colors.brown} />
+            {unreadNotifs > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={[typography.micro, { color: colors.white, fontFamily: `${font}Bold`, fontSize: 10 }]}>
+                  {unreadNotifs > 99 ? '99+' : unreadNotifs}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <View style={styles.logoCenter}>
+            <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
+          </View>
+          <TouchableOpacity onPress={loadLocation} disabled={locating} style={styles.refreshBtn} activeOpacity={0.7}>
+            {locating ? <ActivityIndicator color={colors.primary} size={16} /> : <LocateFixed size={20} color={colors.primary} />}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={loadLocation} disabled={locating} style={styles.refreshBtn} activeOpacity={0.7}>
-          {locating ? <ActivityIndicator color={colors.primary} size={16} /> : <LocateFixed size={20} color={colors.primary} />}
-        </TouchableOpacity>
-      </View>
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={[styles.quickAction, styles.requestAction]} onPress={() => router.push('/(tabs)/request')} activeOpacity={0.85}>
-          <Heart size={21} color={colors.white} fill={colors.white} />
-          <Text style={[styles.quickActionText, { fontFamily: `${font}Bold` }]}>اطلب وجبة الآن</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.quickAction, styles.shareAction]} onPress={() => router.push('/(tabs)/donate')} activeOpacity={0.85}>
-          <UtensilsCrossed size={21} color={colors.white} />
-          <Text style={[styles.quickActionText, { fontFamily: `${font}Bold` }]}>شارك طعام الآن</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <Search size={18} color={colors.brownMuted} />
-          <TextInput
-            style={[styles.searchInput, { fontFamily: `${font}Regular` }]}
-            placeholder={t('searchMap')}
-            value={search}
-            onChangeText={setSearch}
-            placeholderTextColor={colors.brownMuted}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <X size={16} color={colors.brownMuted} />
+        {/* Quick action button */}
+        <View style={styles.quickActions}>
+          {effectiveMode === 'needer' && (
+            <TouchableOpacity style={[styles.quickAction, styles.requestAction]} onPress={() => router.push('/(tabs)/request')} activeOpacity={0.85}>
+              <Heart size={21} color={colors.white} fill={colors.white} />
+              <Text style={[styles.quickActionText, { fontFamily: `${font}Bold` }]}>{t('requestMealNow')}</Text>
+            </TouchableOpacity>
+          )}
+          {effectiveMode === 'donor' && (
+            <TouchableOpacity style={[styles.quickAction, styles.shareAction]} onPress={() => router.push('/(tabs)/donate')} activeOpacity={0.85}>
+              <UtensilsCrossed size={21} color={colors.white} />
+              <Text style={[styles.quickActionText, { fontFamily: `${font}Bold` }]}>{t('shareFoodNow')}</Text>
             </TouchableOpacity>
           )}
         </View>
-      </View>
 
-      <View style={styles.filterRow}>
-        <FilterChip type="all" label={t('filterAll')} icon={<Sliders size={14} color={filter === 'all' ? colors.white : colors.brownMuted} />} />
-        <FilterChip type="requests" label={t('filterRequests')} icon={<Heart size={14} color={filter === 'requests' ? colors.white : colors.coral} />} />
-        <FilterChip type="food" label={t('filterFood')} icon={<UtensilsCrossed size={14} color={filter === 'food' ? colors.white : colors.green} />} />
-      </View>
-
-      <View style={styles.mapWrap}>
-        {Platform.OS === 'web' ? (
-          React.createElement('iframe', {
-            ref: (node: any) => { iframeRef.current = node; },
-            title: 'SHARek live map',
-            srcDoc: LEAFLET_HTML,
-            style: { border: 0, width: '100%', height: '100%', display: 'block' },
-            onLoad: () => setMapReady(true),
-            allow: 'geolocation',
-          })
-        ) : (
-          <WebView
-            ref={webViewRef}
-            source={{ html: LEAFLET_HTML }}
-            style={styles.map}
-            originWhitelist={['*']}
-            javaScriptEnabled
-            domStorageEnabled
-            startInLoadingState
-            onMessage={onWebViewMessage}
-            renderLoading={() => <View style={styles.mapLoading}><ActivityIndicator color={colors.primary} size="large" /></View>}
-          />
-        )}
-        {locating && (
-          <View style={styles.locatingOverlay}>
-            <ActivityIndicator color={colors.primary} size="small" />
-            <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>{t('locating')}</Text>
-          </View>
-        )}
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.coral }]} />
-            <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('markerRequest')}</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.green }]} />
-            <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('markerFood')}</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: colors.green, borderColor: colors.white, borderWidth: 2 }]} />
-            <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('myLocation')}</Text>
+        {/* Search */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Search size={18} color={colors.brownMuted} />
+            <TextInput
+              style={[styles.searchInput, { fontFamily: `${font}Regular` }]}
+              placeholder={t('searchMap')}
+              value={search}
+              onChangeText={setSearch}
+              placeholderTextColor={colors.brownMuted}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <X size={16} color={colors.brownMuted} />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
-      </View>
 
-      {profile?.role === 'needer' && (
-        <View style={styles.suggestedSection}>
-          <Text style={[typography.heading, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
-            {t('suggestedMeals')}
-          </Text>
-          {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ paddingVertical: spacing.md }} />
-          ) : suggestedDonations.length === 0 ? (
-            <View style={styles.suggestedEmpty}>
-              <UtensilsCrossed size={32} color={colors.brownMuted} />
-              <Text style={[typography.small, { color: colors.brownMuted, marginTop: spacing.xs, fontFamily: `${font}Regular` }]}>
-                {t('noNearbyFood')}
-              </Text>
-            </View>
+        {/* Filter chips */}
+        <View style={styles.filterRow}>
+          <FilterChip type="all" label={t('filterAll')} icon={<Sliders size={14} color={filter === 'all' ? colors.white : colors.brownMuted} />} />
+          {effectiveMode === 'donor' && (
+            <FilterChip type="requests" label={t('filterRequests')} icon={<Heart size={14} color={filter === 'requests' ? colors.white : colors.coral} />} />
+          )}
+          {effectiveMode === 'needer' && (
+            <FilterChip type="food" label={t('filterFood')} icon={<UtensilsCrossed size={14} color={filter === 'food' ? colors.white : colors.green} />} />
+          )}
+        </View>
+
+        {/* Map — fixed height, always visible */}
+        <View style={styles.mapWrap}>
+          {Platform.OS === 'web' ? (
+            React.createElement('iframe', {
+              ref: (node: any) => { iframeRef.current = node; },
+              title: 'SHARek live map',
+              srcDoc: LEAFLET_HTML,
+              style: { border: 0, width: '100%', height: '100%', display: 'block' },
+              onLoad: () => setMapReady(true),
+              allow: 'geolocation',
+            })
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: spacing.lg }}>
-              {suggestedDonations.map(({ donation, dist }) => (
-                <View key={donation.id} style={styles.suggestedCard}>
-                  {donation.image_url ? (
-                    <Image source={{ uri: donation.image_url }} style={styles.suggestedImage} resizeMode="cover" />
-                  ) : (
-                    <View style={[styles.suggestedImage, styles.suggestedImagePlaceholder]}>
-                      <UtensilsCrossed size={26} color={colors.brownMuted} />
-                    </View>
-                  )}
-                  <View style={styles.suggestedBody}>
+            <WebView
+              ref={webViewRef}
+              source={{ html: LEAFLET_HTML }}
+              style={styles.map}
+              originWhitelist={['*']}
+              javaScriptEnabled
+              domStorageEnabled
+              startInLoadingState
+              onMessage={onWebViewMessage}
+              renderLoading={() => <View style={styles.mapLoading}><ActivityIndicator color={colors.primary} size="large" /></View>}
+            />
+          )}
+          {locating && (
+            <View style={styles.locatingOverlay}>
+              <ActivityIndicator color={colors.primary} size="small" />
+              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>{t('locating')}</Text>
+            </View>
+          )}
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.coral }]} />
+              <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('markerRequest')}</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.green }]} />
+              <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('markerFood')}</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.green, borderColor: colors.white, borderWidth: 2 }]} />
+              <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('myLocation')}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Suggested meals for needer — below map, same scroll */}
+        {effectiveMode === 'needer' && (
+          <SuggestedMeals location={location} />
+        )}
+
+        {/* Nearby list for donor — below map, same scroll */}
+        {effectiveMode === 'donor' && (
+          <View style={styles.listSection}>
+            <Text style={[typography.heading, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
+              {t('filterRequests')}
+            </Text>
+            {loading && <ActivityIndicator color={colors.primary} style={{ paddingVertical: spacing.lg }} />}
+            {!loading && sortedItems.length === 0 && (
+              <View style={styles.emptyWrap}>
+                <Search size={36} color={colors.brownMuted} />
+                <Text style={[typography.body, { color: colors.brownMuted, marginTop: spacing.md, fontFamily: `${font}Regular` }]}>
+                  {search || filter !== 'all' ? t('noResults') : t('noOpenRequests')}
+                </Text>
+              </View>
+            )}
+            {sortedItems.map((item) => {
+              const isRequest = item.type === 'request';
+              const req = item.data as MealRequest;
+              const don = item.data as FoodDonation;
+              const isSelected = selected?.id === (isRequest ? req.id : don.id);
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[styles.listCard, isSelected && { borderColor: colors.primary, borderWidth: 2 }]}
+                  onPress={() => showBottomCard({ type: item.type, id: isRequest ? req.id : don.id } as SelectedItem)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.listIcon, { backgroundColor: isRequest ? colors.errorBg : colors.greenBg }]}>
+                    {isRequest ? <Heart size={20} color={colors.coral} /> : <UtensilsCrossed size={20} color={colors.green} />}
+                  </View>
+                  <View style={{ flex: 1 }}>
                     <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
-                      {donation.food_name}
+                      {isRequest ? `${req.meals} ${t('meals')}` : don.food_name}
                     </Text>
-                    <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
-                      {donation.meals} {t('meals')} {t('available')}
-                    </Text>
-                    <View style={styles.suggestedMeta}>
-                      <View style={styles.suggestedDistBadge}>
-                        <Navigation size={10} color={colors.greenDark} />
-                        <Text style={[typography.micro, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>
-                          {distText(dist)}
+                    {isRequest ? (
+                      <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
+                        {`${req.timing === 'now' ? t('now') : t('later')} · ${timeAgo(req.created_at, language)}`}
+                      </Text>
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
+                          {`${don.meals} ${t('meals')} · `}
                         </Text>
-                      </View>
-                      <View style={styles.suggestedExpiryBadge}>
-                        <Clock size={10} color={colors.warning} />
                         <LiveCountdown
-                          iso={donation.expires_at}
+                          iso={don.expires_at}
                           lang={language}
-                          style={[typography.micro, { color: colors.warning, fontFamily: `${font}SemiBold` }]}
+                          style={[typography.small, { color: colors.warning, fontFamily: `${font}SemiBold` }]}
                         />
                       </View>
+                    )}
+                  </View>
+                  {item.dist !== null && (
+                    <View style={styles.distBadge}>
+                      <Navigation size={11} color={colors.greenDark} />
+                      <Text style={[typography.micro, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>
+                        {distText(item.dist)}
+                      </Text>
                     </View>
-                    <TouchableOpacity
-                      style={styles.getItBtn}
-                      onPress={() => claimFood(donation)}
-                      disabled={actionBusy}
-                      activeOpacity={0.8}
-                    >
-                      {actionBusy ? <ActivityIndicator color={colors.white} size={14} /> : (
-                        <Text style={[typography.small, { color: colors.white, fontFamily: `${font}Bold` }]}>
-                          {t('getIt')}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
-      <View
-        style={styles.list}
-      >
-        {loading && <ActivityIndicator color={colors.primary} style={{ paddingVertical: spacing.lg }} />}
-
-        {!loading && dataError && (
-          <View style={styles.emptyWrap}>
-            <Text style={[typography.body, { color: colors.brownMuted, marginTop: spacing.md, textAlign: 'center', fontFamily: `${font}Regular` }]}>
-              {t('errorGeneric')}
-            </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
-
-        {!loading && !dataError && sortedItems.length === 0 && (
-          <View style={styles.emptyWrap}>
-            <Search size={36} color={colors.brownMuted} />
-            <Text style={[typography.body, { color: colors.brownMuted, marginTop: spacing.md, fontFamily: `${font}Regular` }]}>
-              {search || filter !== 'all' ? t('noResults') : t('noOpenRequests')}
-            </Text>
-          </View>
-        )}
-
-        {sortedItems.map((item) => {
-          const isRequest = item.type === 'request';
-          const req = item.data as MealRequest;
-          const don = item.data as FoodDonation;
-          const isSelected = selected?.id === (isRequest ? req.id : don.id);
-          return (
-            <TouchableOpacity
-              key={item.key}
-              style={[styles.listCard, isSelected && { borderColor: colors.primary, borderWidth: 2 }]}
-              onPress={() => showBottomCard({ type: item.type, id: isRequest ? req.id : don.id } as SelectedItem)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.listIcon, { backgroundColor: isRequest ? colors.errorBg : colors.greenBg }]}>
-                {isRequest ? <Heart size={20} color={colors.coral} /> : <UtensilsCrossed size={20} color={colors.green} />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
-                  {isRequest ? `${req.meals} ${t('meals')}` : don.food_name}
-                </Text>
-                {isRequest ? (
-                  <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
-                    {`${req.timing === 'now' ? t('now') : t('later')} · ${timeAgo(req.created_at, language)}`}
-                  </Text>
-                ) : (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
-                      {`${don.meals} ${t('meals')} · `}
-                    </Text>
-                    <LiveCountdown
-                      iso={don.expires_at}
-                      lang={language}
-                      style={[typography.small, { color: colors.warning, fontFamily: `${font}SemiBold` }]}
-                    />
-                  </View>
-                )}
-              </View>
-              {item.dist !== null && (
-                <View style={styles.distBadge}>
-                  <Navigation size={11} color={colors.greenDark} />
-                  <Text style={[typography.micro, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>
-                    {distText(item.dist)}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
       </ScrollView>
 
+      {/* Bottom detail card — overlays on top of scrollable content */}
       {selected && (selectedRequest || selectedDonation) && (
         <Animated.View
           style={[
             styles.bottomCard,
             {
-              paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.lg,
+              paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.xl + 20,
               transform: [{
                 translateY: bottomAnim.interpolate({
                   inputRange: [0, 1],
@@ -748,7 +713,7 @@ export default function MapScreen() {
               )}
             </View>
           ) : selectedRequest ? (
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 220 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 260 }}>
               <View style={styles.detailHeader}>
                 <View style={[styles.detailIcon, { backgroundColor: colors.errorBg }]}>
                   <Heart size={24} color={colors.coral} />
@@ -874,7 +839,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xs,
   },
   refreshBtn: { padding: spacing.sm },
-  headerSpacer: { width: 36 },
+  bellBtn: { padding: spacing.sm, position: 'relative' },
+  notifBadge: {
+    position: 'absolute', top: 2, right: 2,
+    backgroundColor: colors.coral, borderRadius: 9, minWidth: 18, height: 18,
+    paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center',
+  },
   logoCenter: { alignItems: 'center', justifyContent: 'center' },
   logo: { width: 84, height: 84 },
   quickActions: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
@@ -924,7 +894,7 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { ...typography.micro, color: colors.brown },
-  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  listSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
   emptyWrap: { alignItems: 'center', paddingVertical: spacing.xxl },
   listCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -942,7 +912,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
     paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl,
     shadowColor: colors.shadowStrong, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 1, shadowRadius: 16, elevation: 10,
-    maxHeight: 360,
   },
   bottomHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.sm },
   closeBtn: { position: 'absolute', top: spacing.sm, right: spacing.md, padding: spacing.xs },
@@ -963,27 +932,4 @@ const styles = StyleSheet.create({
     shadowColor: colors.coral, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 6,
   },
   resultWrap: { alignItems: 'center', paddingVertical: spacing.lg },
-  suggestedSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  suggestedEmpty: { alignItems: 'center', paddingVertical: spacing.md },
-  suggestedCard: {
-    width: 168, backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden',
-    marginRight: spacing.sm, borderWidth: 1.5, borderColor: colors.border,
-    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
-  },
-  suggestedImage: { width: '100%', height: 96 },
-  suggestedImagePlaceholder: { backgroundColor: colors.surfaceAlt, justifyContent: 'center', alignItems: 'center' },
-  suggestedBody: { padding: spacing.sm },
-  suggestedMeta: { flexDirection: 'row', gap: spacing.xs, marginVertical: 6, flexWrap: 'wrap' },
-  suggestedDistBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    backgroundColor: colors.greenBg, borderRadius: radius.pill, paddingHorizontal: spacing.xs, paddingVertical: 2,
-  },
-  suggestedExpiryBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    backgroundColor: colors.warningBg, borderRadius: radius.pill, paddingHorizontal: spacing.xs, paddingVertical: 2,
-  },
-  getItBtn: {
-    backgroundColor: colors.green, borderRadius: radius.md, paddingVertical: spacing.xs,
-    alignItems: 'center', justifyContent: 'center', marginTop: 2,
-  },
 });

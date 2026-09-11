@@ -1300,7 +1300,7 @@ function ClaimedList({ onBack }: { onBack: () => void }) {
 
   const confirmPickup = async (claimId: string) => {
     setClaimActionId(claimId);
-    const { error } = await apiPost(`/v1/food-claims/${claimId}/confirm-pickup`)
+    const { error } = await apiPost<any>(`/v1/food-claims/${claimId}/confirm-pickup`)
       .then(() => ({ error: null as unknown })).catch((err) => ({ error: err }));
     setClaimActionId(null);
     if (error) { Alert.alert(t('errorGeneric')); return; }
@@ -1407,6 +1407,12 @@ function ClaimedList({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  targetOption: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FAFAFA', borderRadius: 8, paddingVertical: 12, borderWidth: 1.5, borderColor: '#EAEAEA' },
+  targetOptionActive: { backgroundColor: '#2E9E5B', borderColor: '#2E9E5B' },
+  targetList: { gap: 12, marginTop: 12 },
+  targetRequest: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FAFAFA', borderRadius: 8, padding: 12, borderWidth: 1.5, borderColor: '#EAEAEA' },
+  targetRequestActive: { borderColor: '#2E9E5B', backgroundColor: '#E8F5EC' },
+
   container: { flex: 1, backgroundColor: colors.background },
   headerCard: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
   headerIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },

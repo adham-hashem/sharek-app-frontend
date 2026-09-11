@@ -3,14 +3,29 @@ import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator,
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
-import { Mail, Lock, User } from 'lucide-react-native';
+import { Mail, Lock, User, Moon, Church, Globe, Check, Scroll } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { UserReligion } from '@/lib/supabase';
+
+const religionOptions: Array<{
+  value: UserReligion;
+  icon: React.ReactNode;
+  labelKey: string;
+  color: string;
+  bg: string;
+}> = [
+  { value: 'muslim', icon: <Moon size={22} color={colors.green} />, labelKey: 'religionMuslim', color: colors.green, bg: colors.greenBg },
+  { value: 'christian', icon: <Church size={22} color={colors.primary} />, labelKey: 'religionChristian', color: colors.primary, bg: colors.surfaceAlt },
+  { value: 'jewish', icon: <Scroll size={22} color={colors.goldenDark} />, labelKey: 'religionJewish', color: colors.goldenDark, bg: colors.warningBg },
+  { value: 'other', icon: <Globe size={22} color={colors.brownLight} />, labelKey: 'religionOther', color: colors.brownLight, bg: colors.surfaceMuted },
+];
 
 export default function RegisterScreen() {
   const { signUp, t } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [religion, setReligion] = useState<UserReligion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -20,9 +35,10 @@ export default function RegisterScreen() {
     if (!email.trim()) return setError(t('emailRequired'));
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError(t('invalidEmail'));
     if (password.length < 6) return setError(t('passwordRequired'));
+    if (!religion) return setError(t('religionRequired'));
 
     setBusy(true);
-    const { error: err } = await signUp(email.trim(), password, fullName.trim());
+    const { error: err } = await signUp(email.trim(), password, fullName.trim(), religion);
     setBusy(false);
     if (err) {
       setError(t(err));
@@ -36,9 +52,7 @@ export default function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <ScreenHeader title="" style={{ paddingHorizontal: 0, paddingTop: spacing.md, paddingBottom: spacing.sm }} />
 
-        <View style={styles.logoFrame}>
-          <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
-        </View>
+        <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
         <Text style={styles.title}>{t('register')}</Text>
         <Text style={styles.sub}>{t('registerSub')}</Text>
 
@@ -81,6 +95,36 @@ export default function RegisterScreen() {
             />
           </View>
 
+          <View style={styles.religionSection}>
+            <Text style={styles.religionLabel}>{t('selectReligion')}</Text>
+            <Text style={styles.religionSub}>{t('selectReligionSub')}</Text>
+            <View style={styles.religionGrid}>
+              {religionOptions.map(({ value, icon, labelKey, color, bg }) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[
+                    styles.religionCard,
+                    religion === value && { borderColor: color, borderWidth: 2.5 },
+                  ]}
+                  onPress={() => setReligion(value)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.religionIcon, { backgroundColor: bg }]}>
+                    {icon}
+                  </View>
+                  <Text style={[styles.religionName, religion === value && { color }]}>
+                    {t(labelKey)}
+                  </Text>
+                  {religion === value && (
+                    <View style={[styles.religionCheck, { backgroundColor: color }]}>
+                      <Check size={12} color={colors.white} strokeWidth={3} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {error && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>{error}</Text>
@@ -107,13 +151,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxl },
 
-  logoFrame: {
-    width: 72, height: 72, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt,
-    justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: spacing.md,
-    borderWidth: 2, borderColor: colors.borderLight,
-    shadowColor: colors.shadowStrong, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
-  },
-  logo: { width: 52, height: 52 },
+  logo: { width: 140, height: 140, alignSelf: 'center', marginBottom: spacing.md },
   title: { ...typography.title, color: colors.brown, textAlign: 'center' },
   sub: { ...typography.caption, color: colors.brownMuted, textAlign: 'center', marginBottom: spacing.xl, marginTop: spacing.xs },
   form: { gap: spacing.md },
@@ -123,6 +161,44 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md,
   },
   input: { ...typography.body, flex: 1, color: colors.brown, padding: 0 },
+
+  religionSection: {
+    marginTop: spacing.xs,
+  },
+  religionLabel: {
+    ...typography.bodyBold, color: colors.brown, marginBottom: 2,
+  },
+  religionSub: {
+    ...typography.small, color: colors.brownMuted, marginBottom: spacing.sm,
+  },
+  religionGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm,
+  },
+  religionCard: {
+    width: '47%',
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.border,
+    position: 'relative',
+  },
+  religionIcon: {
+    width: 48, height: 48, borderRadius: 24,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  religionName: {
+    ...typography.bodyBold, color: colors.brown, textAlign: 'center',
+  },
+  religionCheck: {
+    position: 'absolute', top: 8, right: 8,
+    width: 20, height: 20, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+  },
+
   errorBox: { backgroundColor: colors.errorBg, borderRadius: radius.sm, padding: spacing.sm },
   errorText: { ...typography.caption, color: colors.error, textAlign: 'center' },
   button: {

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
 import { UserRole } from '@/lib/supabase';
-import { Heart, HandHeart, Building2, UtensilsCrossed, Hotel, SkipForward } from 'lucide-react-native';
+import { Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel, SkipForward } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 
 const roles: Array<{
@@ -16,6 +16,7 @@ const roles: Array<{
   { role: 'needer', icon: <Heart size={32} color={colors.coral} />, color: colors.coral, bg: colors.errorBg },
   { role: 'donor', icon: <HandHeart size={32} color={colors.green} />, color: colors.green, bg: colors.greenBg },
   { role: 'charity', icon: <Building2 size={32} color={colors.primary} />, color: colors.primary, bg: colors.surfaceAlt },
+  { role: 'organization', icon: <Building size={32} color={colors.brownLight} />, color: colors.brownLight, bg: colors.surfaceMuted },
   { role: 'restaurant', icon: <UtensilsCrossed size={32} color={colors.goldenDark} />, color: colors.goldenDark, bg: colors.warningBg },
   { role: 'hotel', icon: <Hotel size={32} color={colors.brownLight} />, color: colors.brownLight, bg: colors.surfaceMuted },
 ];
@@ -28,13 +29,14 @@ export default function RoleScreen() {
   const confirm = async () => {
     setBusy(true);
     const role = selected ?? 'skipped';
-    const { error } = await updateRole(role);
+    await updateRole(role);
     setBusy(false);
-    if (error) {
-      Alert.alert(t('errorGeneric'));
-      return;
+    const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
+    if (orgRoles.includes(role)) {
+      router.replace('/(auth)/mode');
+    } else {
+      router.replace('/(auth)/country');
     }
-    router.replace('/');
   };
 
   return (
@@ -68,7 +70,7 @@ export default function RoleScreen() {
 
       {selected && (
         <TouchableOpacity style={styles.confirmBtn} onPress={confirm} disabled={busy} activeOpacity={0.8}>
-        {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.confirmText}>{t('confirm')}</Text>}
+          <Text style={styles.confirmText}>{t('confirm')}</Text>
         </TouchableOpacity>
       )}
     </ScrollView>

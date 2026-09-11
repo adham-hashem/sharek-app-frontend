@@ -5,6 +5,7 @@ import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
 import { Globe } from 'lucide-react-native';
 import { AppLanguage } from '@/lib/supabase';
+import { ScreenHeader } from '@/components/ScreenHeader';
 
 export default function LanguageScreen() {
   const { setLanguage, t } = useAuth();
@@ -18,12 +19,9 @@ export default function LanguageScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenHeader title="" style={{ paddingHorizontal: 0, paddingTop: spacing.md, paddingBottom: spacing.sm }} />
       <View style={styles.logoWrap}>
-        <View style={styles.logoFrame}>
-          <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
-        </View>
-        <Text style={styles.appName}>{t('appName')}</Text>
-        <Text style={styles.tagline}>{t('appTagline')}</Text>
+        <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
       </View>
 
       <View style={styles.card}>
@@ -38,7 +36,6 @@ export default function LanguageScreen() {
           onPress={() => choose('ar')}
           activeOpacity={0.7}
         >
-          <Text style={styles.flag}>🇸🇦</Text>
           <Text style={[styles.optionText, selected === 'ar' && styles.optionTextActive]}>
             {t('arabic')}
           </Text>
@@ -50,7 +47,6 @@ export default function LanguageScreen() {
           onPress={() => choose('en')}
           activeOpacity={0.7}
         >
-          <Text style={styles.flag}>🇬🇧</Text>
           <Text style={[styles.optionText, selected === 'en' && styles.optionTextActive]}>
             {t('english')}
           </Text>
@@ -74,54 +70,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     paddingHorizontal: spacing.lg,
-    justifyContent: 'center',
   },
-  logoWrap: { alignItems: 'center', marginBottom: spacing.xl },
-  logoFrame: {
-    width: 88,
-    height: 88,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceAlt,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    shadowColor: colors.shadowStrong,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 6,
-    borderWidth: 2,
-    borderColor: colors.borderLight,
-  },
-  logo: { width: 62, height: 62 },
-  appName: { ...typography.huge, color: colors.brown },
-  tagline: { ...typography.body, color: colors.brownMuted, marginTop: spacing.xs },
+  logoWrap: { alignItems: 'center', marginBottom: spacing.sm, marginTop: spacing.xs },
+  logo: { width: 220, height: 220 },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 4,
+    paddingHorizontal: spacing.sm,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.xs },
   title: { ...typography.heading, color: colors.brown },
-  sub: { ...typography.caption, color: colors.brownMuted, marginBottom: spacing.lg },
+  sub: { ...typography.caption, color: colors.brownMuted, marginBottom: spacing.md },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    marginBottom: spacing.xs,
+    gap: spacing.md,
   },
-  optionActive: { borderColor: colors.primary, backgroundColor: colors.surfaceAlt },
-  flag: { fontSize: 24 },
+  optionActive: { backgroundColor: 'rgba(255, 107, 53, 0.08)' },
+  flag: { fontSize: 26 },
   optionText: { ...typography.bodyBold, color: colors.brown, flex: 1 },
   optionTextActive: { color: colors.primary },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
@@ -130,7 +98,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radius.md,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    marginTop: spacing.lg,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

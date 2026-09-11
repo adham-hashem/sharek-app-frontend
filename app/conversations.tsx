@@ -11,6 +11,7 @@ import { supabase, FoodDonation, Profile } from '@/lib/supabase';
 import {
   ChevronLeft, MessageCircle, UtensilsCrossed, Send,
 } from 'lucide-react-native';
+import { AchievementBadgeMini } from '@/components/AchievementBadge';
 
 interface ConversationRow {
   donation: FoodDonation;
@@ -117,8 +118,8 @@ export default function ConversationsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft size={24} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
+          <ChevronLeft size={26} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
         </TouchableOpacity>
         <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
           {t('chatTitle')}
@@ -158,6 +159,11 @@ export default function ConversationsScreen() {
                 <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
                   {row.otherUser.full_name ?? '...'}
                 </Text>
+                {(row.otherUser.contributor_level ?? 0) > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <AchievementBadgeMini level={row.otherUser.contributor_level ?? 0} size={13} />
+                  </View>
+                )}
                 <View style={styles.convoFoodRow}>
                   {row.donation.image_url ? (
                     <Image source={{ uri: row.donation.image_url }} style={styles.convoFoodImg} />

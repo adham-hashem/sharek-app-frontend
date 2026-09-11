@@ -28,6 +28,51 @@ export function VerifiedBadge({ language, size = 16, showLabel = false }: Verifi
   return <CheckCircle2 size={size} color="#1DA1F2" fill="#1DA1F2" />;
 }
 
+interface VerifiedNameProps {
+  name: string;
+  isVerified: boolean;
+  language: AppLanguage;
+  fontSize?: number;
+  fontWeight?: string;
+  color?: string;
+  numberOfLines?: number;
+  style?: any;
+}
+
+export function VerifiedName({
+  name,
+  isVerified,
+  language,
+  fontSize = 16,
+  color = '#3B2A20',
+  numberOfLines = 1,
+  style,
+}: VerifiedNameProps) {
+  const font = language === 'ar' ? 'Cairo-' : 'Inter-';
+  const badgeSize = Math.round(fontSize * 1.1);
+
+  return (
+    <View style={[styles.nameRow, style]}>
+      <Text
+        style={{
+          fontSize,
+          color,
+          fontFamily: `${font}Bold`,
+          flexShrink: 1,
+        }}
+        numberOfLines={numberOfLines}
+      >
+        {name}
+      </Text>
+      {isVerified && (
+        <View style={styles.badgeWrap}>
+          <CheckCircle2 size={badgeSize} color="#1DA1F2" fill="#1DA1F2" />
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   labelContainer: {
     flexDirection: 'row',
@@ -37,5 +82,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: spacing.xs + 2,
     paddingVertical: 2,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  badgeWrap: {
+    flexShrink: 0,
   },
 });

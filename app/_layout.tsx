@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -18,7 +18,16 @@ import { colors } from '@/lib/theme';
 SplashScreen.preventAutoHideAsync();
 
 function RootNav() {
-  const { loading, profile } = useAuth();
+  const { loading, session } = useAuth();
+  const pathname = usePathname();
+  const segments = useSegments();
+  const router = useRouter();
+  const isAuthRoute = segments[0] === '(auth)';
+
+  useEffect(() => {
+    if (loading || session || pathname === '/' || isAuthRoute) return;
+    router.replace('/(auth)/welcome');
+  }, [isAuthRoute, loading, pathname, router, session]);
 
   if (loading) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
@@ -33,12 +42,20 @@ function RootNav() {
       <Stack.Screen name="(auth)/login" />
       <Stack.Screen name="reset-password" />
       <Stack.Screen name="(auth)/role" />
+      <Stack.Screen name="(auth)/mode" />
+      <Stack.Screen name="(auth)/country" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="settings" />
       <Stack.Screen name="donate-money" />
       <Stack.Screen name="donate-sharek" />
       <Stack.Screen name="admin" />
       <Stack.Screen name="history" />
+      <Stack.Screen name="notifications" />
+      <Stack.Screen name="quran" />
+      <Stack.Screen name="support" />
+      <Stack.Screen name="verify-account" />
+      <Stack.Screen name="admin-verification" />
+      <Stack.Screen name="admin-ratings" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="+not-found" />
     </Stack>

@@ -14,6 +14,15 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const forgotPassword = async () => {
+    setError(null);
+    if (!email.trim()) { setError(t('emailRequired')); return; }
+    setBusy(true);
+    const { error: resetError } = await resetPassword(email);
+    setBusy(false);
+    setError(resetError ? t(resetError) : t('resetEmailSent'));
+  };
+
   const submit = async () => {
     setError(null);
     if (!email.trim() || password.length < 1) {
@@ -32,15 +41,6 @@ export default function LoginScreen() {
 
   const socialLogin = async (provider: 'google' | 'facebook') => {
     setError(t('errorGeneric'));
-  };
-
-  const forgotPassword = async () => {
-    setError(null);
-    if (!email.trim()) { setError(t('emailRequired')); return; }
-    setBusy(true);
-    const { error: resetError } = await resetPassword(email);
-    setBusy(false);
-    setError(resetError ? t(resetError) : t('resetEmailSent'));
   };
 
   return (

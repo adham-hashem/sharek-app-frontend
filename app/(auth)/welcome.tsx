@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  StyleSheet, View, Text, TouchableOpacity, Image, Animated, Easing, Platform, Dimensions,
+  StyleSheet, View, Text, TouchableOpacity, Image, Animated, Easing, Dimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -30,7 +30,7 @@ export default function WelcomeScreen() {
     ]).start();
   }, [fadeAnim, riseAnim]);
 
-  const goNext = () => router.replace('/(auth)/language');
+  const goNext = () => router.push('/(auth)/language');
 
   return (
     <View style={styles.container}>
@@ -48,14 +48,6 @@ export default function WelcomeScreen() {
           style={styles.logo}
           resizeMode="contain"
         />
-
-        <Text style={styles.welcomeAr}>أهلاً بك في SHARek</Text>
-        <Text style={styles.welcomeEn}>Welcome to SHARek</Text>
-
-        <View style={styles.divider} />
-
-        <Text style={styles.taglineAr}>شارك طعامك... شارك الخير</Text>
-        <Text style={styles.taglineEn}>Share Food. Share Goodness.</Text>
       </Animated.View>
 
       <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
@@ -66,10 +58,6 @@ export default function WelcomeScreen() {
         >
           <Text style={styles.ctaText}>ابدأ الآن · Get Started</Text>
         </TouchableOpacity>
-
-        <Text style={styles.hint}>
-          {Platform.OS === 'web' ? 'Tap to begin · اضغط للبدء' : ''}
-        </Text>
       </Animated.View>
     </View>
   );
@@ -102,51 +90,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(249, 178, 51, 0.08)',
   },
   content: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
   },
   logo: {
     width: LOGO_W,
     height: LOGO_H,
-    marginBottom: spacing.xxl,
-  },
-  welcomeAr: {
-    ...typography.heading,
-    color: colors.primary,
-    fontFamily: 'Cairo-Bold',
-    fontSize: 22,
-    textAlign: 'center',
-  },
-  welcomeEn: {
-    ...typography.body,
-    color: colors.coral,
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 15,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  divider: {
-    width: 56,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.golden,
-    marginVertical: spacing.lg,
-  },
-  taglineAr: {
-    ...typography.bodyBold,
-    color: colors.brown,
-    fontFamily: 'Cairo-SemiBold',
-    fontSize: 17,
-    textAlign: 'center',
-  },
-  taglineEn: {
-    ...typography.caption,
-    color: colors.brownMuted,
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 2,
+    marginBottom: 80,
   },
   footer: {
     position: 'absolute',
@@ -154,7 +106,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.xxl + spacing.lg + 73,
     paddingTop: spacing.xl,
     alignItems: 'center',
   },
@@ -177,11 +129,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Cairo-Bold',
     fontWeight: '700',
-  },
-  hint: {
-    ...typography.small,
-    color: colors.brownMuted,
-    marginTop: spacing.sm,
-    fontFamily: 'Inter-Regular',
   },
 });

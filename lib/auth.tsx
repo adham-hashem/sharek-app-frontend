@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, Profile, UserSettings, AppLanguage, UserRole } from './supabase';
+import { supabase, Profile, UserSettings, AppLanguage, UserRole, UserMode, UserReligion } from './supabase';
 import { t as translate, isRTL } from './i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerPushDevice } from './push';
@@ -15,12 +15,13 @@ interface AuthContextType {
   setLanguage: (lang: AppLanguage) => Promise<void>;
   t: (key: string) => string;
   rtl: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName: string, religion: UserReligion | null) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateRole: (role: UserRole) => Promise<{ error: string | null }>;
-  updateProfile: (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'avatar_url'>>) => Promise<{ error: string | null }>;
+  updateMode: (mode: UserMode) => Promise<{ error: string | null }>;
+  updateProfile: (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'currency' | 'avatar_url'>>) => Promise<{ error: string | null }>;
   updateSettings: (fields: Partial<Pick<UserSettings, 'notifications_enabled' | 'request_sound_enabled' | 'vibration_enabled' | 'location_enabled'>>) => Promise<{ error: string | null }>;
   deleteAccount: () => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
@@ -193,7 +194,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   }, [session, loadProfile]);
 
-  const updateProfile = useCallback(async (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'avatar_url'>>) => {
+  const updateMode = useCallback(async (mode: UserMode) => {
+    if (!session?.user) return { error: 'authError' };
+    const { error } = await supabase
+      .from('profiles')
+      .update({ mode })
+      .eq('id', session.user.id);
+    if (error) return { error: 'errorGeneric' };
+    await loadProfile(session.user.id);
+    return { error: null };
+  }, [session, loadProfile]);
+
+  const updateProfile = useCallback(async (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'currency' | 'avatar_url'>>) => {
     if (!session?.user) return { error: 'authError' };
     const { error } = await supabase
       .from('profiles')
@@ -253,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     resetPassword,
     signOut,
     updateRole,
+    updateMode,
     updateProfile,
     updateSettings,
     deleteAccount,

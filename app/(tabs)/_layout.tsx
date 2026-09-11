@@ -1,8 +1,9 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Home, Heart, HandHeart, Menu } from 'lucide-react-native';
 import { colors } from '@/lib/theme';
 import { useAuth } from '@/lib/auth';
 import { Platform, Dimensions } from 'react-native';
+import { Redirect } from 'expo-router';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isSmallPhone = SCREEN_WIDTH < 360;
