@@ -8,6 +8,7 @@ import { colors, spacing, radius, typography } from '@/lib/theme';
 import { supabase, UserRole } from '@/lib/supabase';
 import { router } from 'expo-router';
 import { ContributorBadges } from '@/components/ContributorBadges';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import {
   User, Edit3, Shield, Settings as SettingsIcon, LogOut,
   ChevronLeft, X, Heart, HandHeart, Building2, UtensilsCrossed, Hotel, Check, Star, Phone, Mail, MapPin,
@@ -135,14 +136,18 @@ export default function MenuScreen() {
   );
 
   const currentRole = roleConfig.find(r => r.role === profile?.role);
+  const isVerified = Boolean((profile as unknown as { is_verified?: boolean } | null)?.is_verified);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
       <View style={styles.headerBg}>
         <Image source={require('../../assets/images/image copy.png')} style={styles.headerLogo} resizeMode="contain" />
-        <Text style={[typography.heading, { color: colors.brown, marginTop: spacing.sm, fontFamily: `${font}Bold` }]}>
-          {profile?.full_name ?? 'SHARek'}
-        </Text>
+        <View style={styles.nameRow}>
+          <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
+            {profile?.full_name ?? 'SHARek'}
+          </Text>
+          {isVerified && <VerifiedBadge language={language} size={18} />}
+        </View>
         <Text style={[typography.caption, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
           {profile?.email}
         </Text>
@@ -369,6 +374,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerLogo: { width: 72, height: 72 },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: spacing.sm,
+    maxWidth: '100%',
+  },
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     backgroundColor: colors.white, borderRadius: radius.pill,

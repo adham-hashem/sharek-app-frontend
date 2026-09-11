@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ActivityIndicator,
-  TextInput, ScrollView, Image, Animated, Platform, Alert,
+  TextInput, ScrollView, Image, Animated, Platform, Alert, Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -21,6 +22,11 @@ type SelectedItem =
   | { type: 'request'; id: string }
   | { type: 'food'; id: string }
   | null;
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const isTablet = SCREEN_WIDTH >= 768;
+const MAP_HEIGHT = isTablet ? 380 : Math.max(300, Math.min(430, SCREEN_HEIGHT * 0.38));
 
 const LEAFLET_HTML = `<!DOCTYPE html>
 <html>
@@ -186,6 +192,7 @@ function LiveCountdown({ iso, lang, style }: { iso: string; lang: 'ar' | 'en'; s
 
 export default function MapScreen() {
   const { t, language, user, profile } = useAuth();
+  const insets = useSafeAreaInsets();
   const [location, setLocation] = useState<Coords | null>(null);
   const [locating, setLocating] = useState(true);
   const [requests, setRequests] = useState<MealRequest[]>([]);
@@ -462,6 +469,12 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: (selected ? 300 : spacing.xxl) + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
+      >
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <View style={styles.logoCenter}>
@@ -620,10 +633,8 @@ export default function MapScreen() {
         </View>
       )}
 
-      <ScrollView
+      <View
         style={styles.list}
-        contentContainerStyle={{ paddingBottom: selected ? 280 : spacing.xxl }}
-        showsVerticalScrollIndicator={false}
       >
         {loading && <ActivityIndicator color={colors.primary} style={{ paddingVertical: spacing.lg }} />}
 
@@ -691,6 +702,7 @@ export default function MapScreen() {
             </TouchableOpacity>
           );
         })}
+      </View>
       </ScrollView>
 
       {selected && (selectedRequest || selectedDonation) && (
@@ -698,6 +710,7 @@ export default function MapScreen() {
           style={[
             styles.bottomCard,
             {
+              paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.lg,
               transform: [{
                 translateY: bottomAnim.interpolate({
                   inputRange: [0, 1],
@@ -770,15 +783,15 @@ export default function MapScreen() {
               </Text>
 
               <TouchableOpacity
-                style={styles.actionBtn}
+                style={styles.sendOfferBtn}
                 onPress={() => acceptRequest(selectedRequest)}
                 disabled={actionBusy}
                 activeOpacity={0.8}
               >
                 {actionBusy ? <ActivityIndicator color={colors.white} size={18} /> : (
                   <>
-                    <HandHeart size={20} color={colors.white} />
-                    <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>
+                    <HandHeart size={22} color={colors.white} />
+                    <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold`, fontSize: 17 }]}>
                       {t('sendOffer')}
                     </Text>
                   </>
@@ -855,6 +868,7 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xs,
@@ -885,7 +899,14 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { ...typography.small, color: colors.brown },
   chipTextActive: { color: colors.white },
-  mapWrap: { flex: 1, marginHorizontal: spacing.lg, borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1.5, borderColor: colors.border },
+  mapWrap: {
+    height: MAP_HEIGHT,
+    marginHorizontal: spacing.lg,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
   map: { flex: 1 },
   mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceAlt },
   locatingOverlay: {
@@ -903,7 +924,7 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { ...typography.micro, color: colors.brown },
-  list: { flex: 0.6, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  list: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   emptyWrap: { alignItems: 'center', paddingVertical: spacing.xxl },
   listCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
@@ -921,7 +942,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
     paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl,
     shadowColor: colors.shadowStrong, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 1, shadowRadius: 16, elevation: 10,
-    maxHeight: 300,
+    maxHeight: 360,
   },
   bottomHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.sm },
   closeBtn: { position: 'absolute', top: spacing.sm, right: spacing.md, padding: spacing.xs },
@@ -934,6 +955,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.coral, borderRadius: radius.md, paddingVertical: spacing.md,
     marginTop: spacing.sm,
     shadowColor: colors.coral, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 4,
+  },
+  sendOfferBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    backgroundColor: colors.coral, borderRadius: radius.lg, paddingVertical: spacing.md + 4,
+    marginTop: spacing.md,
+    shadowColor: colors.coral, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 6,
   },
   resultWrap: { alignItems: 'center', paddingVertical: spacing.lg },
   suggestedSection: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },

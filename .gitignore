@@ -3,6 +3,7 @@ node_modules/
 
 # expo
 .expo/
+supabase/.temp/
 dist/
 web-build/
 expo-env.d.ts

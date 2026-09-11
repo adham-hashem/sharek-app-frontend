@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Home, Heart, HandHeart, Menu } from 'lucide-react-native';
 import { colors } from '@/lib/theme';
 import { useAuth } from '@/lib/auth';
@@ -9,7 +9,11 @@ const isSmallPhone = SCREEN_WIDTH < 360;
 const isWeb = Platform.OS === 'web';
 
 export default function TabLayout() {
-  const { t, language } = useAuth();
+  const { t, language, session } = useAuth();
+
+  if (!session) {
+    return <Redirect href="/(auth)/welcome" />;
+  }
 
   const labelSize = isSmallPhone ? 10 : 11;
   const iconSize = isSmallPhone ? 20 : 23;
