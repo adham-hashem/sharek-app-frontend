@@ -141,8 +141,6 @@ function FoodForm({ onBack }: { onBack: () => void }) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [foodName, setFoodName] = useState('');
   const [description, setDescription] = useState('');
-  const [foodType, setFoodType] = useState('');
-  const [storageMethod, setStorageMethod] = useState('');
   const [allergens, setAllergens] = useState('');
   const [meals, setMeals] = useState(1);
   const [expiresAt, setExpiresAt] = useState(new Date(Date.now() + 3 * 3600000));
@@ -208,7 +206,15 @@ function FoodForm({ onBack }: { onBack: () => void }) {
 
   const publish = async () => {
     if (!foodName.trim()) return Alert.alert(t('foodNameRequired'));
-    if (!location) return Alert.alert(t('locationError'));
+    let publishLocation = location;
+    if (!publishLocation) {
+      const ok = await ensureLocationPermission();
+      if (ok) {
+        publishLocation = await getCurrentLocation();
+        if (publishLocation) setLocation(publishLocation);
+      }
+    }
+    if (!publishLocation) return Alert.alert(t('locationError'));
     if (expiresAt.getTime() <= Date.now()) return Alert.alert(t('setExpiry'));
 
     setSubmitting(true);
@@ -238,33 +244,30 @@ function FoodForm({ onBack }: { onBack: () => void }) {
       }
     }
 
-    const now = new Date();
-    const { error } = await apiPost<FoodDonation>('/v1/food-donations', {
-      food_name: foodName.trim(),
-      description: description.trim(),
-      image_url: imageUrl,
-      meals,
-      pickup_start: now.toISOString(),
-      pickup_end: expiresAt.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      latitude: location.latitude,
-      longitude: location.longitude,
-      food_type: foodType.trim() || undefined,
-      prepared_at: new Date().toISOString(),
-      storage_method: storageMethod.trim() || undefined,
-      allergens: allergens.trim() || undefined,
-    }).then(() => ({ error: null as unknown })).catch((err) => ({ error: err }));
-
-    setSubmitting(false);
-    if (error) {
-      Alert.alert(t('errorGeneric'));
+    try {
+      const now = new Date();
+      await apiPost<FoodDonation>('/v1/food-donations', {
+        food_name: foodName.trim(),
+        description: description.trim(),
+        image_url: imageUrl,
+        meals,
+        pickup_start: now.toISOString(),
+        pickup_end: expiresAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        latitude: publishLocation.latitude,
+        longitude: publishLocation.longitude,
+        prepared_at: now.toISOString(),
+        allergens: allergens.trim() || undefined,
+      });
+    } catch (error) {
+      setSubmitting(false);
+      Alert.alert(t('errorGeneric'), error instanceof Error ? error.message : undefined);
       return;
     }
+    setSubmitting(false);
     setPublished(true);
     setFoodName('');
     setDescription('');
-    setFoodType('');
-    setStorageMethod('');
     setAllergens('');
     setPhoto(null);
     setMeals(1);
@@ -340,8 +343,6 @@ function FoodForm({ onBack }: { onBack: () => void }) {
         multiline
       />
 
-      <TextInput style={styles.textInput} placeholder={t('foodType')} value={foodType} onChangeText={setFoodType} placeholderTextColor={colors.brownMuted} />
-      <TextInput style={styles.textInput} placeholder={t('storageMethod')} value={storageMethod} onChangeText={setStorageMethod} placeholderTextColor={colors.brownMuted} />
       <TextInput style={styles.textInput} placeholder={t('allergens')} value={allergens} onChangeText={setAllergens} placeholderTextColor={colors.brownMuted} />
 
       <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
@@ -417,9 +418,9 @@ function FoodForm({ onBack }: { onBack: () => void }) {
       )}
 
       <TouchableOpacity
-        style={[styles.publishBtn, (!location || submitting) && { opacity: 0.5 }]}
+        style={[styles.publishBtn, submitting && { opacity: 0.5 }]}
         onPress={publish}
-        disabled={submitting || !location}
+        disabled={submitting}
         activeOpacity={0.8}
       >
         {submitting ? <ActivityIndicator color={colors.white} /> : (
