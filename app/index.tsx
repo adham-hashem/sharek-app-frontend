@@ -10,9 +10,9 @@ export default function Index() {
     return <Redirect href="/(auth)/welcome" />;
   }
 
-  if (profile?.role === 'skipped') {
-    return <Redirect href="/(auth)/role" />;
-  }
+  // We no longer force redirect to role if 'skipped', because 'skipped' is a valid fallback state 
+  // and forcing it creates an infinite loop if the user intentionally skips or fails to set a restricted role.
+  // The app resolves 'skipped' gracefully to 'donor' mode via effectiveMode.
 
   return <Redirect href="/(tabs)" />;
 }

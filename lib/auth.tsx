@@ -15,7 +15,7 @@ interface AuthContextType {
   setLanguage: (lang: AppLanguage) => Promise<void>;
   t: (key: string) => string;
   rtl: boolean;
-  signUp: (email: string, password: string, fullName: string, religion: UserReligion | null) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, fullName: string, religion: UserReligion | null) => Promise<{ error: string | null, session?: Session | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session]);
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string) => {
+  const signUp = useCallback(async (email: string, password: string, fullName: string, religion: UserReligion | null) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) {
       if (error.message.includes('already')) return { error: 'emailInUse' };
@@ -158,11 +158,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         role: 'skipped',
         language: lang,
+        religion: religion,
       });
       if (profileError) console.error('profile insert error', profileError);
       await supabase.from('user_settings').insert({ user_id: data.user.id });
     }
-    return { error: null };
+    return { error: null, session: data.session };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {

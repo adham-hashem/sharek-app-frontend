@@ -4,6 +4,22 @@ type Dict = Record<string, string>;
 
 const ar: Dict = {
   appName: 'SHARek',
+  
+  selectReligion: 'اختر الديانة',
+  selectReligionSub: 'نحتاج هذه المعلومة لتخصيص تجربتك',
+  religionMuslim: 'مسلم',
+  religionChristian: 'مسيحي',
+  religionJewish: 'يهودي',
+  religionOther: 'أخرى',
+  religionRequired: 'الرجاء اختيار الديانة',
+
+  selectCountry: 'اختر الدولة',
+  selectCountrySub: 'اختر دولتك لإظهار العملة الصحيحة',
+  searchCountry: 'ابحث عن دولة...',
+
+  emailConfirmationRequired: 'تم إنشاء الحساب بنجاح! يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.',
+  roleRequiresApproval: 'هذا الدور يتطلب موافقة الإدارة. الرجاء التواصل مع الدعم أو اختيار دور مختلف.',
+
   appTagline: 'شارك الطعام، انقذ حياة',
 
   chooseLanguage: 'اختر اللغة',
@@ -333,6 +349,21 @@ const ar: Dict = {
 
 const en: Dict = {
   appName: 'SHARek',
+  
+  selectReligion: 'Select Religion',
+  selectReligionSub: 'We need this to personalize your experience',
+  religionMuslim: 'Muslim',
+  religionChristian: 'Christian',
+  religionJewish: 'Jewish',
+  religionOther: 'Other',
+  religionRequired: 'Please select a religion',
+
+  selectCountry: 'Select Country',
+  selectCountrySub: 'Select your country to show the correct currency',
+  searchCountry: 'Search country...',
+
+  emailConfirmationRequired: 'Account created! Please check your email to verify your account.',
+  roleRequiresApproval: 'This role requires administrator approval. Please contact support or choose a different role.',
   appTagline: 'Share food, save lives',
 
   chooseLanguage: 'Choose Language',

@@ -38,12 +38,21 @@ export default function RegisterScreen() {
     if (!religion) return setError(t('religionRequired'));
 
     setBusy(true);
-    const { error: err } = await signUp(email.trim(), password, fullName.trim(), religion);
+    const res = await signUp(email.trim(), password, fullName.trim(), religion);
     setBusy(false);
-    if (err) {
-      setError(t(err));
+    if (res.error) {
+      setError(t(res.error));
       return;
     }
+    
+    if (!res.session) {
+      setError(t('emailConfirmationRequired') || 'Please check your email to confirm your account.');
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 3000);
+      return;
+    }
+
     router.replace('/(auth)/role');
   };
 

@@ -28,9 +28,15 @@ export default function RoleScreen() {
 
   const confirm = async () => {
     setBusy(true);
-    const role = selected ?? 'skipped';
-    await updateRole(role);
+    const role = selected ?? 'donor'; // skip defaults to donor now
+    const { error } = await updateRole(role);
     setBusy(false);
+    
+    if (error) {
+      alert(t('roleRequiresApproval') || 'This role requires administrator approval. Please contact support or choose a different role.');
+      return;
+    }
+
     const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
     if (orgRoles.includes(role)) {
       router.replace('/(auth)/mode');
