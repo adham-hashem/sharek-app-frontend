@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ActivityIndicator,
   TextInput, ScrollView, Image, Animated, Platform, Alert, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Circle, Marker } from 'react-native-maps';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import {
@@ -18,6 +17,7 @@ import { router } from 'expo-router';
 import { ensureLocationPermission, getCurrentLocation, watchLocation, haversineKm, Coords } from '@/lib/location';
 import { SuggestedMeals } from '@/components/SuggestedMeals';
 import { getUnreadCount, createNotification } from '@/lib/notifications';
+import { SharekMap } from '@/components/SharekMap';
 
 type FilterType = 'all' | 'requests' | 'food';
 type SelectedItem =
@@ -88,7 +88,7 @@ window.updateMarkers = function(data) {
     var key = 'r_' + r.id;
     seen[key] = true;
     if (!markers[key]) {
-      var m = L.marker([r.latitude, r.longitude], { icon: makeIcon('❤️', '#F7564C', false), riseOnHover: true });
+      var m = L.marker([r.latitude, r.longitude], { icon: makeIcon('â¤ï¸', '#F7564C', false), riseOnHover: true });
       m.on('click', function() {
         var msg = JSON.stringify({type:'tap',itemType:'request',id:r.id});
         window.ReactNativeWebView && window.ReactNativeWebView.postMessage(msg);
@@ -104,7 +104,7 @@ window.updateMarkers = function(data) {
     var key = 'd_' + d.id;
     seen[key] = true;
     if (!markers[key]) {
-      var m = L.marker([d.latitude, d.longitude], { icon: makeIcon('🍱', '#2E9E5B', false), riseOnHover: true });
+      var m = L.marker([d.latitude, d.longitude], { icon: makeIcon('ðŸ±', '#2E9E5B', false), riseOnHover: true });
       m.on('click', function() {
         var msg = JSON.stringify({type:'tap',itemType:'food',id:d.id});
         window.ReactNativeWebView && window.ReactNativeWebView.postMessage(msg);
@@ -129,7 +129,7 @@ window.highlightMarker = function(itemType, id) {
     var kType = parts[0] === 'r' ? 'request' : 'food';
     var kId = parts.slice(1).join('_');
     var isActive = kType === itemType && kId === id;
-    var emoji = kType === 'request' ? '❤️' : '🍱';
+    var emoji = kType === 'request' ? 'â¤ï¸' : 'ðŸ±';
     var color = kType === 'request' ? '#F7564C' : '#2E9E5B';
     markers[key].setIcon(makeIcon(emoji, color, isActive));
   });
@@ -157,12 +157,12 @@ window.panTo = function(lat, lng) {
 function timeAgo(iso: string, lang: 'ar' | 'en'): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return lang === 'ar' ? 'الآن' : 'just now';
-  if (mins < 60) return lang === 'ar' ? `قبل ${mins} دقيقة` : `${mins} min ago`;
+  if (mins < 1) return lang === 'ar' ? 'Ø§Ù„Ø¢Ù†' : 'just now';
+  if (mins < 60) return lang === 'ar' ? `Ù‚Ø¨Ù„ ${mins} Ø¯Ù‚ÙŠÙ‚Ø©` : `${mins} min ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} ${lang === 'ar' ? 'ساعة' : 'hr'}${lang === 'ar' ? '' : ' ago'}`;
+  if (hrs < 24) return `${hrs} ${lang === 'ar' ? 'Ø³Ø§Ø¹Ø©' : 'hr'}${lang === 'ar' ? '' : ' ago'}`;
   const days = Math.floor(hrs / 24);
-  return `${days} ${lang === 'ar' ? 'يوم' : 'd'}${lang === 'ar' ? '' : ' ago'}`;
+  return `${days} ${lang === 'ar' ? 'ÙŠÙˆÙ…' : 'd'}${lang === 'ar' ? '' : ' ago'}`;
 }
 
 function LiveCountdown({ iso, lang, style }: { iso: string; lang: 'ar' | 'en'; style?: any }) {
@@ -173,7 +173,7 @@ function LiveCountdown({ iso, lang, style }: { iso: string; lang: 'ar' | 'en'; s
   }, []);
   const diff = new Date(iso).getTime() - Date.now();
   if (diff <= 0) {
-    return <Text style={style}>{lang === 'ar' ? 'منتهي' : 'expired'}</Text>;
+    return <Text style={style}>{lang === 'ar' ? 'Ù…Ù†ØªÙ‡ÙŠ' : 'expired'}</Text>;
   }
   const totalSec = Math.floor(diff / 1000);
   const hrs = Math.floor(totalSec / 3600);
@@ -208,46 +208,8 @@ export default function MapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);
-  const webViewRef = useRef<any>(null);
-  const mapRef = useRef<MapView>(null);
-  const iframeRef = useRef<any>(null);
   const bottomAnim = useRef(new Animated.Value(0)).current;
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
-
-  const runMapScript = useCallback((script: string, message?: Record<string, unknown>) => {
-    if (Platform.OS === 'web') {
-      if (iframeRef.current?.contentWindow && message) {
-        iframeRef.current.contentWindow.postMessage(message, '*');
-      }
-      return;
-    }
-    webViewRef.current?.injectJavaScript(`${script}; true;`);
-  }, []);
-
-  const sendMapMessage = useCallback((message: Record<string, unknown>) => {
-    if (Platform.OS === 'web') {
-      runMapScript('', message);
-      return;
-    }
-    const type = message.type;
-    if (type === 'map-update') runMapScript(`window.updateMarkers(${JSON.stringify(message.data)})`);
-    if (type === 'map-location') runMapScript(`window.updateUserLocation(${message.lat}, ${message.lng})`);
-    if (type === 'map-center') runMapScript(`window.centerOn(${message.lat}, ${message.lng}, ${message.zoom ?? 14})`);
-    if (type === 'map-pan') runMapScript(`window.panTo(${message.lat}, ${message.lng})`);
-    if (type === 'map-highlight') runMapScript(`window.highlightMarker(${JSON.stringify(message.itemType)}, ${JSON.stringify(message.id)})`);
-  }, [runMapScript]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'map-ready') setMapReady(true);
-      if (event.data?.type === 'tap') {
-        showBottomCard({ type: event.data.itemType, id: event.data.id });
-      }
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
 
   const loadLocation = useCallback(async () => {
     setLocating(true);
@@ -256,36 +218,10 @@ export default function MapScreen() {
       const coords = await getCurrentLocation();
       if (coords) {
         setLocation(coords);
-        mapRef.current?.animateToRegion({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          latitudeDelta: 0.012,
-          longitudeDelta: 0.012,
-        }, 800);
         setHasCenteredOnUser(true);
       }
     }
     setLocating(false);
-  }, []);
-
-  const centerOnUser = useCallback(() => {
-    if (!location) {
-      loadLocation();
-      return;
-    }
-    mapRef.current?.animateToRegion({
-      latitude: location.latitude,
-      longitude: location.longitude,
-      latitudeDelta: 0.012,
-      longitudeDelta: 0.012,
-    }, 650);
-  }, [loadLocation, location]);
-
-  const zoomMap = useCallback(async (direction: 'in' | 'out') => {
-    const camera = await mapRef.current?.getCamera();
-    if (!camera) return;
-    const currentZoom = camera.zoom ?? 14;
-    mapRef.current?.animateCamera({ ...camera, zoom: direction === 'in' ? currentZoom + 1 : currentZoom - 1 }, { duration: 250 });
   }, []);
 
   const loadData = useCallback(async () => {
@@ -332,12 +268,6 @@ export default function MapScreen() {
       stopWatching = await watchLocation((coords) => {
         setLocation(coords);
         if (!hasCenteredOnUser) {
-          mapRef.current?.animateToRegion({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            latitudeDelta: 0.012,
-            longitudeDelta: 0.012,
-          }, 800);
           setHasCenteredOnUser(true);
         }
       });
@@ -380,28 +310,19 @@ export default function MapScreen() {
     return () => { supabase.removeChannel(sub); };
   }, [user]);
 
-  useEffect(() => {
-    sendMapMessage({ type: 'map-update', data: { requests, donations } });
-  }, [requests, donations, mapReady]);
-
   const showBottomCard = useCallback((item: SelectedItem) => {
     setSelected(item);
     setActionResult(null);
     Animated.spring(bottomAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }).start();
     if (item) {
-      sendMapMessage({ type: 'map-highlight', itemType: item.type, id: item.id });
       const target = item.type === 'request'
         ? requests.find(r => r.id === item.id)
         : donations.find(d => d.id === item.id);
-      if (target) {
-        mapRef.current?.animateToRegion({ latitude: target.latitude, longitude: target.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 });
-      }
     }
   }, [requests, donations, bottomAnim]);
 
   const hideBottomCard = useCallback(() => {
     Animated.timing(bottomAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-    sendMapMessage({ type: 'map-highlight', itemType: null, id: null });
     setTimeout(() => setSelected(null), 200);
   }, [bottomAnim]);
 
@@ -474,7 +395,7 @@ export default function MapScreen() {
     createNotification(
       req.user_id,
       'new_offer',
-      language === 'ar' ? `عرض جديد من ${profile?.full_name ?? ''}` : `New offer from ${profile?.full_name ?? ''}`,
+      language === 'ar' ? `Ø¹Ø±Ø¶ Ø¬Ø¯ÙŠØ¯ Ù…Ù† ${profile?.full_name ?? ''}` : `New offer from ${profile?.full_name ?? ''}`,
       { match_id: req.id, other_user_id: user.id, meals: req.meals },
       language,
     );
@@ -499,7 +420,7 @@ export default function MapScreen() {
     createNotification(
       donation.user_id,
       'food_claimed',
-      language === 'ar' ? `تم طلب وجبتك: ${donation.food_name}` : `Your meal was claimed: ${donation.food_name}`,
+      language === 'ar' ? `ØªÙ… Ø·Ù„Ø¨ ÙˆØ¬Ø¨ØªÙƒ: ${donation.food_name}` : `Your meal was claimed: ${donation.food_name}`,
       { food_donation_id: donation.id, other_user_id: user.id, food_name: donation.food_name },
       language,
     );
@@ -608,109 +529,23 @@ export default function MapScreen() {
           )}
         </View>
 
-        {/* Map — fixed height, always visible */}
-        <View style={styles.mapWrap}>
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            mapType="standard"
-            showsUserLocation
-            showsMyLocationButton={false}
-            showsCompass
-            showsScale
-            rotateEnabled
-            scrollEnabled
-            zoomEnabled
-            pitchEnabled
-            toolbarEnabled={false}
-            loadingEnabled
-            loadingIndicatorColor={colors.primary}
-            loadingBackgroundColor={colors.background}
-            initialRegion={{
-              latitude: location?.latitude ?? 24.4539,
-              longitude: location?.longitude ?? 54.3773,
-              latitudeDelta: location ? 0.012 : 5,
-              longitudeDelta: location ? 0.012 : 5,
-            }}
-            onMapReady={() => setMapReady(true)}
-          >
-            {location && (
-              <Circle
-                center={{ latitude: location.latitude, longitude: location.longitude }}
-                radius={Math.max(location.accuracy ?? 35, 25)}
-                strokeColor="rgba(30, 136, 229, 0.45)"
-                fillColor="rgba(30, 136, 229, 0.16)"
-                zIndex={1}
-              />
-            )}
-            {requests.map((request) => (
-              <Marker
-                key={`request-${request.id}`}
-                coordinate={{ latitude: request.latitude, longitude: request.longitude }}
-                title={t('markerRequest')}
-                description={`${request.meals} ${t('meals')}`}
-                onPress={() => showBottomCard({ type: 'request', id: request.id })}
-                zIndex={3}
-              >
-                <View style={[styles.realMapMarker, styles.requestMarker]}>
-                  <Text style={styles.markerEmoji}>❤️</Text>
-                </View>
-              </Marker>
-            ))}
-            {donations.map((donation) => (
-              <Marker
-                key={`food-${donation.id}`}
-                coordinate={{ latitude: donation.latitude, longitude: donation.longitude }}
-                title={donation.food_name}
-                description={`${donation.meals} ${t('meals')}`}
-                onPress={() => showBottomCard({ type: 'food', id: donation.id })}
-                zIndex={2}
-              >
-                <View style={[styles.realMapMarker, styles.foodMarker]}>
-                  <Text style={styles.markerEmoji}>🍱</Text>
-                </View>
-              </Marker>
-            ))}
-          </MapView>
-          {locating && (
-            <View style={styles.locatingOverlay}>
-              <ActivityIndicator color={colors.primary} size="small" />
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>{t('locating')}</Text>
-            </View>
-          )}
-          <View style={styles.mapControls}>
-            <TouchableOpacity style={styles.mapControlBtn} onPress={centerOnUser} activeOpacity={0.75}>
-              <LocateFixed size={18} color={colors.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mapControlBtn} onPress={() => zoomMap('in')} activeOpacity={0.75}>
-              <Text style={[styles.mapControlText, { fontFamily: `${font}Bold` }]}>+</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mapControlBtn} onPress={() => zoomMap('out')} activeOpacity={0.75}>
-              <Text style={[styles.mapControlText, { fontFamily: `${font}Bold` }]}>−</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.legend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.coral }]} />
-              <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('markerRequest')}</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.green }]} />
-              <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('markerFood')}</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: colors.green, borderColor: colors.white, borderWidth: 2 }]} />
-              <Text style={[styles.legendText, { fontFamily: `${font}SemiBold` }]}>{t('myLocation')}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Suggested meals for needer — below map, same scroll */}
+        {/* Map â€” fixed height, always visible */}
+        <SharekMap
+          location={location}
+          locating={locating}
+          requests={requests}
+          donations={donations}
+          font={font}
+          t={t}
+          onSelect={showBottomCard}
+          onReady={() => setMapReady(true)}
+        />
+        {/* Suggested meals for needer â€” below map, same scroll */}
         {effectiveMode === 'needer' && (
           <SuggestedMeals location={location} />
         )}
 
-        {/* Nearby list for donor — below map, same scroll */}
+        {/* Nearby list for donor â€” below map, same scroll */}
         {effectiveMode === 'donor' && (
           <View style={styles.listSection}>
             <Text style={[typography.heading, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
@@ -746,12 +581,12 @@ export default function MapScreen() {
                     </Text>
                     {isRequest ? (
                       <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
-                        {`${req.timing === 'now' ? t('now') : t('later')} · ${timeAgo(req.created_at, language)}`}
+                        {`${req.timing === 'now' ? t('now') : t('later')} Â· ${timeAgo(req.created_at, language)}`}
                       </Text>
                     ) : (
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
-                          {`${don.meals} ${t('meals')} · `}
+                          {`${don.meals} ${t('meals')} Â· `}
                         </Text>
                         <LiveCountdown
                           iso={don.expires_at}
@@ -776,7 +611,7 @@ export default function MapScreen() {
         )}
       </ScrollView>
 
-      {/* Bottom detail card — overlays on top of scrollable content */}
+      {/* Bottom detail card â€” overlays on top of scrollable content */}
       {selected && (selectedRequest || selectedDonation) && (
         <Animated.View
           style={[

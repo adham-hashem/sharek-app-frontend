@@ -15,11 +15,11 @@ Notifications.setNotificationHandler({
 let soundObj: Audio.Sound | null = null;
 
 const SOUND_FILES = {
-  request: require('../../assets/sounds/request.wav'),
-  accepted: require('../../assets/sounds/accepted.wav'),
-  reservation: require('../../assets/sounds/reservation.wav'),
-  message: require('../../assets/sounds/message.wav'),
-  completed: require('../../assets/sounds/completed.wav'),
+  request: require('../assets/sounds/request.wav'),
+  accepted: require('../assets/sounds/accepted.wav'),
+  reservation: require('../assets/sounds/reservation.wav'),
+  message: require('../assets/sounds/message.wav'),
+  completed: require('../assets/sounds/completed.wav'),
 };
 
 export type SoundType = keyof typeof SOUND_FILES | 'default';
