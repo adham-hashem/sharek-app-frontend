@@ -4,7 +4,7 @@ import {
   TextInput, ScrollView, Image, Animated, Platform, Alert, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Circle, Marker } from 'react-native-maps';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import {
@@ -15,7 +15,7 @@ import {
 import { apiFetch, apiPost } from '@/lib/api';
 import { supabase, MealRequest, FoodDonation } from '@/lib/supabase';
 import { router } from 'expo-router';
-import { ensureLocationPermission, getCurrentLocation, haversineKm, Coords } from '@/lib/location';
+import { ensureLocationPermission, getCurrentLocation, watchLocation, haversineKm, Coords } from '@/lib/location';
 import { SuggestedMeals } from '@/components/SuggestedMeals';
 import { getUnreadCount, createNotification } from '@/lib/notifications';
 
@@ -28,7 +28,6 @@ type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const WebView = (props: any) => <View style={props.style} />;
 const isTablet = SCREEN_WIDTH >= 768;
 const MAP_HEIGHT = isTablet ? 380 : SCREEN_HEIGHT * 0.38;
 
@@ -208,6 +207,7 @@ export default function MapScreen() {
   const [claimedDonation, setClaimedDonation] = useState<FoodDonation | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
+  const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);
   const webViewRef = useRef<any>(null);
   const mapRef = useRef<MapView>(null);
   const iframeRef = useRef<any>(null);
@@ -256,12 +256,37 @@ export default function MapScreen() {
       const coords = await getCurrentLocation();
       if (coords) {
         setLocation(coords);
-        sendMapMessage({ type: 'map-location', lat: coords.latitude, lng: coords.longitude });
-        sendMapMessage({ type: 'map-center', lat: coords.latitude, lng: coords.longitude, zoom: 14 });
+        mapRef.current?.animateToRegion({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          latitudeDelta: 0.012,
+          longitudeDelta: 0.012,
+        }, 800);
+        setHasCenteredOnUser(true);
       }
     }
     setLocating(false);
-  }, [sendMapMessage]);
+  }, []);
+
+  const centerOnUser = useCallback(() => {
+    if (!location) {
+      loadLocation();
+      return;
+    }
+    mapRef.current?.animateToRegion({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: 0.012,
+      longitudeDelta: 0.012,
+    }, 650);
+  }, [loadLocation, location]);
+
+  const zoomMap = useCallback(async (direction: 'in' | 'out') => {
+    const camera = await mapRef.current?.getCamera();
+    if (!camera) return;
+    const currentZoom = camera.zoom ?? 14;
+    mapRef.current?.animateCamera({ ...camera, zoom: direction === 'in' ? currentZoom + 1 : currentZoom - 1 }, { duration: 250 });
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!location) {
@@ -296,6 +321,34 @@ export default function MapScreen() {
 
   useEffect(() => {
     loadLocation();
+  }, [loadLocation]);
+
+  useEffect(() => {
+    let stopWatching: (() => void) | undefined;
+    let cancelled = false;
+    (async () => {
+      const ok = await ensureLocationPermission();
+      if (!ok || cancelled) return;
+      stopWatching = await watchLocation((coords) => {
+        setLocation(coords);
+        if (!hasCenteredOnUser) {
+          mapRef.current?.animateToRegion({
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            latitudeDelta: 0.012,
+            longitudeDelta: 0.012,
+          }, 800);
+          setHasCenteredOnUser(true);
+        }
+      });
+    })();
+    return () => {
+      cancelled = true;
+      stopWatching?.();
+    };
+  }, [hasCenteredOnUser]);
+
+  useEffect(() => {
     loadData();
     supabase.rpc('expire_food_donations').then(({ error }) => {
       if (!error) loadData();
@@ -306,7 +359,7 @@ export default function MapScreen() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'food_donations' }, loadData)
       .subscribe();
     return () => { supabase.removeChannel(sub); };
-  }, [loadLocation, loadData]);
+  }, [loadData]);
 
   useEffect(() => {
     if (!user) return;
@@ -557,34 +610,85 @@ export default function MapScreen() {
 
         {/* Map — fixed height, always visible */}
         <View style={styles.mapWrap}>
-          {Platform.OS === 'web' ? (
-            React.createElement('iframe', {
-              ref: (node: any) => { iframeRef.current = node; },
-              title: 'SHARek live map',
-              srcDoc: LEAFLET_HTML,
-              style: { border: 0, width: '100%', height: '100%', display: 'block' },
-              onLoad: () => setMapReady(true),
-              allow: 'geolocation',
-            })
-          ) : (
-            <WebView
-              ref={webViewRef}
-              source={{ html: LEAFLET_HTML }}
-              style={styles.map}
-              originWhitelist={['*']}
-              javaScriptEnabled
-              domStorageEnabled
-              startInLoadingState
-              onMessage={onWebViewMessage}
-              renderLoading={() => <View style={styles.mapLoading}><ActivityIndicator color={colors.primary} size="large" /></View>}
-            />
-          )}
+          <MapView
+            ref={mapRef}
+            style={styles.map}
+            mapType="standard"
+            showsUserLocation
+            showsMyLocationButton={false}
+            showsCompass
+            showsScale
+            rotateEnabled
+            scrollEnabled
+            zoomEnabled
+            pitchEnabled
+            toolbarEnabled={false}
+            loadingEnabled
+            loadingIndicatorColor={colors.primary}
+            loadingBackgroundColor={colors.background}
+            initialRegion={{
+              latitude: location?.latitude ?? 24.4539,
+              longitude: location?.longitude ?? 54.3773,
+              latitudeDelta: location ? 0.012 : 5,
+              longitudeDelta: location ? 0.012 : 5,
+            }}
+            onMapReady={() => setMapReady(true)}
+          >
+            {location && (
+              <Circle
+                center={{ latitude: location.latitude, longitude: location.longitude }}
+                radius={Math.max(location.accuracy ?? 35, 25)}
+                strokeColor="rgba(30, 136, 229, 0.45)"
+                fillColor="rgba(30, 136, 229, 0.16)"
+                zIndex={1}
+              />
+            )}
+            {requests.map((request) => (
+              <Marker
+                key={`request-${request.id}`}
+                coordinate={{ latitude: request.latitude, longitude: request.longitude }}
+                title={t('markerRequest')}
+                description={`${request.meals} ${t('meals')}`}
+                onPress={() => showBottomCard({ type: 'request', id: request.id })}
+                zIndex={3}
+              >
+                <View style={[styles.realMapMarker, styles.requestMarker]}>
+                  <Text style={styles.markerEmoji}>❤️</Text>
+                </View>
+              </Marker>
+            ))}
+            {donations.map((donation) => (
+              <Marker
+                key={`food-${donation.id}`}
+                coordinate={{ latitude: donation.latitude, longitude: donation.longitude }}
+                title={donation.food_name}
+                description={`${donation.meals} ${t('meals')}`}
+                onPress={() => showBottomCard({ type: 'food', id: donation.id })}
+                zIndex={2}
+              >
+                <View style={[styles.realMapMarker, styles.foodMarker]}>
+                  <Text style={styles.markerEmoji}>🍱</Text>
+                </View>
+              </Marker>
+            ))}
+          </MapView>
           {locating && (
             <View style={styles.locatingOverlay}>
               <ActivityIndicator color={colors.primary} size="small" />
               <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>{t('locating')}</Text>
             </View>
           )}
+          <View style={styles.mapControls}>
+            <TouchableOpacity style={styles.mapControlBtn} onPress={centerOnUser} activeOpacity={0.75}>
+              <LocateFixed size={18} color={colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mapControlBtn} onPress={() => zoomMap('in')} activeOpacity={0.75}>
+              <Text style={[styles.mapControlText, { fontFamily: `${font}Bold` }]}>+</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.mapControlBtn} onPress={() => zoomMap('out')} activeOpacity={0.75}>
+              <Text style={[styles.mapControlText, { fontFamily: `${font}Bold` }]}>−</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.legend}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: colors.coral }]} />
@@ -882,6 +986,45 @@ const styles = StyleSheet.create({
   },
   map: { flex: 1 },
   mapLoading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceAlt },
+  realMapMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.white,
+    shadowColor: colors.shadowStrong,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  requestMarker: { backgroundColor: colors.coral },
+  foodMarker: { backgroundColor: colors.green },
+  markerEmoji: { fontSize: 18 },
+  mapControls: {
+    position: 'absolute',
+    right: spacing.sm,
+    top: spacing.sm,
+    gap: spacing.xs,
+  },
+  mapControlBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mapControlText: { fontSize: 24, lineHeight: 26, color: colors.primary },
   locatingOverlay: {
     position: 'absolute', top: spacing.sm, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,

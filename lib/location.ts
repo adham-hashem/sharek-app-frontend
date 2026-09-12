@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface Coords {
   latitude: number;
   longitude: number;
+  accuracy?: number | null;
 }
 
 export async function ensureLocationPermission(): Promise<boolean> {
@@ -26,14 +27,14 @@ export async function getCurrentLocation(): Promise<Coords | null> {
           return;
         }
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
           () => resolve(null),
           { enableHighAccuracy: true, timeout: 10000 }
         );
       });
     }
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    return { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+    return { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy };
   } catch {
     return null;
   }
@@ -44,15 +45,15 @@ export async function watchLocation(onChange: (coords: Coords) => void): Promise
   if (Platform.OS === 'web') {
     if (!navigator?.geolocation) return () => undefined;
     const id = navigator.geolocation.watchPosition(
-      (pos) => onChange({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      (pos) => onChange({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       () => undefined,
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
     return () => navigator.geolocation.clearWatch(id);
   }
   const subscription = await Location.watchPositionAsync(
-    { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 10 },
-    (pos) => onChange({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+    { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+    (pos) => onChange({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy })
   );
   return () => subscription.remove();
 }
