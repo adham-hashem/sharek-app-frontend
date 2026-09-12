@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator,
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Mail, Lock, User, Moon, Church, Globe, Check, Scroll } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { UserReligion } from '@/lib/supabase';
@@ -21,7 +22,7 @@ const religionOptions: Array<{
 ];
 
 export default function RegisterScreen() {
-  const { signUp, t } = useAuth();
+  const { signUp, signInWithOAuth, t } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +30,16 @@ export default function RegisterScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
+  const socialLogin = async (provider: 'google' | 'facebook') => {
+      setError(null);
+      setBusy(true);
+      const { error: err, url } = await signInWithOAuth(provider);
+      setBusy(false);
+      if (err) setError(t(err));
+      else if (url) await WebBrowser.openBrowserAsync(url);
+    };
+
+    const submit = async () => {
     setError(null);
     if (!fullName.trim()) return setError(t('fullNameRequired'));
     if (!email.trim()) return setError(t('emailRequired'));

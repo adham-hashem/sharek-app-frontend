@@ -92,12 +92,21 @@ export function playNotificationFeedback(
 ): void {
   if (!settings) return;
   if (!settings.notifications_enabled) return;
+  
   if (IMPORTANT_TYPES.includes(type) || true) {
     if (settings.request_sound_enabled) {
-      playNotificationSound();
+      let soundType: any = 'default';
+      if (type === 'new_meal_request' || type === 'new_nearby_meal') soundType = 'request';
+      else if (type === 'offer_accepted') soundType = 'accepted';
+      else if (type === 'food_claimed') soundType = 'reservation';
+      else if (type === 'new_chat_message') soundType = 'message';
+      else if (type === 'food_received' || type === 'match_completed' || type === 'food_completed') soundType = 'completed';
+      
+      playNotificationSound(soundType);
     }
     if (settings.vibration_enabled) {
-      vibrateDevice();
+      const heavy = (type === 'new_meal_request' || type === 'offer_accepted' || type === 'food_received' || type === 'match_completed');
+      vibrateDevice(heavy);
     }
   }
 }

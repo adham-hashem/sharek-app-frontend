@@ -17,6 +17,7 @@ interface AuthContextType {
   rtl: boolean;
   signUp: (email: string, password: string, fullName: string, religion: UserReligion | null) => Promise<{ error: string | null, session?: Session | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithOAuth: (provider: 'google' | 'facebook') => Promise<{ error: string | null, url: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateRole: (role: UserRole) => Promise<{ error: string | null }>;
@@ -113,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(newSession);
         if (newSession) {
           await Promise.all([
-            loadProfile(newSession.user.id),
+            /* replaced by dynamic load */
             loadSettings(newSession.user.id),
           ]);
           registerPushDevice().catch((error) => console.warn('push registration unavailable', error));
@@ -164,6 +165,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.from('user_settings').insert({ user_id: data.user.id });
     }
     return { error: null, session: data.session };
+  }, []);
+
+  
+  const signInWithOAuth = useCallback(async (provider: 'google' | 'facebook') => {
+    const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: 'sharek://' } });
+    if (error) return { error: 'errorGeneric', url: null };
+    return { error: null, url: data.url };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -263,6 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     rtl: isRTL(language),
     signUp,
     signIn,
+    signInWithOAuth,
     resetPassword,
     signOut,
     updateRole,

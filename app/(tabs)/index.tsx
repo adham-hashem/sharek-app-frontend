@@ -4,7 +4,7 @@ import {
   TextInput, ScrollView, Image, Animated, Platform, Alert, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker } from 'react-native-maps';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import {
@@ -28,6 +28,7 @@ type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const WebView = (props: any) => <View style={props.style} />;
 const isTablet = SCREEN_WIDTH >= 768;
 const MAP_HEIGHT = isTablet ? 380 : SCREEN_HEIGHT * 0.38;
 
@@ -207,7 +208,8 @@ export default function MapScreen() {
   const [claimedDonation, setClaimedDonation] = useState<FoodDonation | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<any>(null);
+  const mapRef = useRef<MapView>(null);
   const iframeRef = useRef<any>(null);
   const bottomAnim = useRef(new Animated.Value(0)).current;
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
@@ -327,7 +329,7 @@ export default function MapScreen() {
 
   useEffect(() => {
     sendMapMessage({ type: 'map-update', data: { requests, donations } });
-  }, [requests, donations, sendMapMessage, mapReady]);
+  }, [requests, donations, mapReady]);
 
   const showBottomCard = useCallback((item: SelectedItem) => {
     setSelected(item);
@@ -339,16 +341,16 @@ export default function MapScreen() {
         ? requests.find(r => r.id === item.id)
         : donations.find(d => d.id === item.id);
       if (target) {
-        sendMapMessage({ type: 'map-pan', lat: target.latitude, lng: target.longitude });
+        mapRef.current?.animateToRegion({ latitude: target.latitude, longitude: target.longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 });
       }
     }
-  }, [requests, donations, bottomAnim, sendMapMessage]);
+  }, [requests, donations, bottomAnim]);
 
   const hideBottomCard = useCallback(() => {
     Animated.timing(bottomAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     sendMapMessage({ type: 'map-highlight', itemType: null, id: null });
     setTimeout(() => setSelected(null), 200);
-  }, [bottomAnim, sendMapMessage]);
+  }, [bottomAnim]);
 
   const onWebViewMessage = useCallback((event: any) => {
     try {

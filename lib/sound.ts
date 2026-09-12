@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
+import { Audio } from 'expo-av';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -11,53 +12,55 @@ Notifications.setNotificationHandler({
   }),
 });
 
-let audioCtx: AudioContext | null = null;
+let soundObj: Audio.Sound | null = null;
 
-function getCtx(): AudioContext | null {
-  if (Platform.OS !== 'web') return null;
-  if (typeof window === 'undefined') return null;
-  if (!audioCtx) {
-    try {
-      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    } catch {
-      return null;
-    }
-  }
-  return audioCtx;
-}
+const SOUND_FILES = {
+  request: require('../../assets/sounds/request.wav'),
+  accepted: require('../../assets/sounds/accepted.wav'),
+  reservation: require('../../assets/sounds/reservation.wav'),
+  message: require('../../assets/sounds/message.wav'),
+  completed: require('../../assets/sounds/completed.wav'),
+};
 
-export function playNotificationSound() {
-  if (Platform.OS !== 'web') {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+export type SoundType = keyof typeof SOUND_FILES | 'default';
+
+export async function playNotificationSound(type: SoundType = 'default') {
+  if (Platform.OS === 'web') {
+    // Basic web fallback or ignore
     return;
   }
-  const ctx = getCtx();
-  if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
-
-  const now = ctx.currentTime;
-
-  const playTone = (freq: number, start: number, duration: number, gainVal: number) => {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0, now + start);
-    gain.gain.linearRampToValueAtTime(gainVal, now + start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now + start);
-    osc.stop(now + start + duration);
-  };
-
-  playTone(880, 0, 0.15, 0.3);
-  playTone(1320, 0.12, 0.2, 0.25);
+  
+  try {
+    if (soundObj) {
+      await soundObj.unloadAsync();
+      soundObj = null;
+    }
+    
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    });
+    
+    if (type !== 'default' && SOUND_FILES[type]) {
+      const { sound } = await Audio.Sound.createAsync(SOUND_FILES[type]);
+      soundObj = sound;
+      await soundObj.playAsync();
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    }
+  } catch (err) {
+    console.warn('Error playing sound', err);
+  }
 }
 
-export function vibrateDevice() {
+export function vibrateDevice(heavy = false) {
   if (Platform.OS !== 'web') {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+    if (heavy) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    }
     return;
   }
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -69,7 +72,7 @@ export function vibrateDevice() {
   }
 }
 
-export async function notifyIncomingRequest(title: string, body: string) {
+export async function notifyIncomingRequest(title: string, body: string, soundType: SoundType = 'default') {
   try {
     if (Platform.OS === 'web') {
       if (typeof Notification !== 'undefined') {
@@ -80,8 +83,15 @@ export async function notifyIncomingRequest(title: string, body: string) {
     }
     const current = await Notifications.getPermissionsAsync();
     const permission = current.granted ? current : await Notifications.requestPermissionsAsync();
-    if (permission.granted) await Notifications.scheduleNotificationAsync({ content: { title, body, sound: 'default' }, trigger: null });
+    if (permission.granted) {
+      await Notifications.scheduleNotificationAsync({ 
+        content: { title, body, sound: 'default' }, 
+        trigger: null 
+      });
+      // Play custom sound locally
+      playNotificationSound(soundType);
+    }
   } catch {
-    // Notification permissions are optional; the realtime in-app card remains available.
+    // Ignore
   }
 }

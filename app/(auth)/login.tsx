@@ -8,7 +8,7 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import * as WebBrowser from 'expo-web-browser';
 
 export default function LoginScreen() {
-  const { signIn, resetPassword, t } = useAuth();
+  const { signIn, signInWithOAuth, resetPassword, t } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,12 @@ export default function LoginScreen() {
   };
 
   const socialLogin = async (provider: 'google' | 'facebook') => {
-    setError(t('errorGeneric'));
+    setError(null);
+    setBusy(true);
+    const { error: err, url } = await signInWithOAuth(provider);
+    setBusy(false);
+    if (err) setError(t(err));
+    else if (url) await WebBrowser.openBrowserAsync(url);
   };
 
   return (

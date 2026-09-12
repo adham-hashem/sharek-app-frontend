@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { apiFetch, apiPost } from '@/lib/api';
@@ -137,7 +137,8 @@ export default function ChatScreen() {
   const [hasRated, setHasRated] = useState(false);
   const [matchRated, setMatchRated] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<any>(null);
+  const mapRef = useRef<MapView>(null);
   const iframeRef = useRef<any>(null);
   const locationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -315,7 +316,7 @@ export default function ChatScreen() {
 
   const pushMyLocation = useCallback(async (coords: Coords) => {
     if (donationId && donation) {
-      if (!['claimed', 'ready_for_pickup', 'received'].includes(donation.status)) return;
+      if (!['claimed', 'ready_for_pickup'].includes(donation.status)) return;
       if (isDonor) {
         await supabase.rpc('update_donor_location', {
           p_donation_id: donationId, p_lat: coords.latitude, p_lng: coords.longitude,
@@ -386,7 +387,7 @@ export default function ChatScreen() {
   }, [pushMyLocation]);
 
   useEffect(() => {
-    if (donation && ['claimed', 'ready_for_pickup', 'received'].includes(donation.status)) {
+    if (donation && ['claimed', 'ready_for_pickup'].includes(donation.status)) {
       startLocationTracking();
     } else if (match && match.status === 'accepted') {
       startLocationTracking();
@@ -650,7 +651,8 @@ export default function ChatScreen() {
     return map[status] ?? colors.brownMuted;
   };
 
-  const showPickupMap = (donation && ['claimed', 'ready_for_pickup', 'received'].includes(donation.status)) || (match && match.status === 'accepted');
+  const WebView = (props: any) => <View style={props.style} />;
+  const showPickupMap = (donation && ['claimed', 'ready_for_pickup'].includes(donation.status)) || (match && match.status === 'accepted');
   const showPickupActions = donation && ['claimed', 'ready_for_pickup'].includes(donation.status);
   const showMatchActions = match && match.status === 'accepted' && !isHelper;
   const showMatchCompleted = match && match.status === 'completed';
