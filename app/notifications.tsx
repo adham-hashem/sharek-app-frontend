@@ -119,7 +119,7 @@ export default function NotificationsScreen() {
           params[k] = v;
         });
       }
-      router.push({ pathname: pathname!, params });
+      router.push({ pathname: pathname! as never, params });
     }
   }, []);
 

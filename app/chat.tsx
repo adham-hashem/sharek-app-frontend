@@ -182,7 +182,7 @@ export default function ChatScreen() {
     if (!donationId && !mealRequestId) return;
     const scope = donationId ? 'food' : 'request';
     const id = donationId ?? mealRequestId;
-    const { items } = await apiFetch<any>(`/v1/chat/${scope}/${id}`).catch(() => ({ items: [] }));
+    const { items } = await apiFetch<{ items: Message[] }>(`/v1/chat/${scope}/${id}`).catch(() => ({ items: [] as Message[] }));
     if (items) {
       setMessages(items);
       const unread = items.filter(

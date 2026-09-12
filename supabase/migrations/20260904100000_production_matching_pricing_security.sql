@@ -183,20 +183,23 @@ CREATE OR REPLACE FUNCTION public.get_nearby_map_items(p_lat double precision, p
 RETURNS TABLE(item_type text, item_id uuid, title text, meals integer, latitude double precision, longitude double precision, expires_at timestamptz, created_at timestamptz, distance_km double precision)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public
 AS $$
-  SELECT 'request'::text, r.id, 'Meal request'::text, r.meals, r.latitude, r.longitude, NULL::timestamptz, r.created_at,
-    6371 * 2 * asin(sqrt(power(sin(radians(r.latitude - p_lat) / 2), 2) + cos(radians(p_lat)) * cos(radians(r.latitude)) * power(sin(radians(r.longitude - p_lng) / 2), 2)))
-  FROM public.meal_requests r
-  WHERE r.status = 'open'
-    AND r.latitude BETWEEN p_lat - (p_radius_km / 111.0) AND p_lat + (p_radius_km / 111.0)
-    AND r.longitude BETWEEN p_lng - (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1))) AND p_lng + (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1)))
-  UNION ALL
-  SELECT 'food'::text, f.id, f.food_name, f.meals, f.latitude, f.longitude, f.expires_at, f.created_at,
-    6371 * 2 * asin(sqrt(power(sin(radians(f.latitude - p_lat) / 2), 2) + cos(radians(p_lat)) * cos(radians(f.latitude)) * power(sin(radians(f.longitude - p_lng) / 2), 2)))
-  FROM public.food_donations f
-  WHERE f.status = 'available' AND f.expires_at > now()
-    AND f.latitude BETWEEN p_lat - (p_radius_km / 111.0) AND p_lat + (p_radius_km / 111.0)
-    AND f.longitude BETWEEN p_lng - (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1))) AND p_lng + (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1)))
-  ORDER BY distance_km ASC
+  SELECT *
+  FROM (
+    SELECT 'request'::text AS item_type, r.id AS item_id, 'Meal request'::text AS title, r.meals, r.latitude, r.longitude, NULL::timestamptz AS expires_at, r.created_at,
+      6371 * 2 * asin(sqrt(power(sin(radians(r.latitude - p_lat) / 2), 2) + cos(radians(p_lat)) * cos(radians(r.latitude)) * power(sin(radians(r.longitude - p_lng) / 2), 2))) AS distance_km
+    FROM public.meal_requests r
+    WHERE r.status = 'open'
+      AND r.latitude BETWEEN p_lat - (p_radius_km / 111.0) AND p_lat + (p_radius_km / 111.0)
+      AND r.longitude BETWEEN p_lng - (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1))) AND p_lng + (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1)))
+    UNION ALL
+    SELECT 'food'::text AS item_type, f.id AS item_id, f.food_name AS title, f.meals, f.latitude, f.longitude, f.expires_at, f.created_at,
+      6371 * 2 * asin(sqrt(power(sin(radians(f.latitude - p_lat) / 2), 2) + cos(radians(p_lat)) * cos(radians(f.latitude)) * power(sin(radians(f.longitude - p_lng) / 2), 2))) AS distance_km
+    FROM public.food_donations f
+    WHERE f.status = 'available' AND f.expires_at > now()
+      AND f.latitude BETWEEN p_lat - (p_radius_km / 111.0) AND p_lat + (p_radius_km / 111.0)
+      AND f.longitude BETWEEN p_lng - (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1))) AND p_lng + (p_radius_km / (111.0 * greatest(cos(radians(p_lat)), 0.1)))
+  ) nearby_items
+  ORDER BY nearby_items.distance_km ASC
   LIMIT 200;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_nearby_map_items(double precision, double precision, double precision) TO authenticated;

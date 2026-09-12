@@ -28,7 +28,7 @@ export default function ModeScreen() {
     setBusy(true);
     await updateMode(selected);
     setBusy(false);
-    router.replace('/(auth)/country');
+    router.replace('/(auth)/country' as never);
   };
 
   return (

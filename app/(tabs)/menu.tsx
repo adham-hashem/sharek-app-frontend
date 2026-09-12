@@ -295,7 +295,7 @@ export default function MenuScreen() {
           <MenuItem
             icon={<Book size={20} color={colors.green} />}
             label={t('quranMushaf')}
-            onPress={() => router.push('/quran')}
+            onPress={() => router.push('/quran' as never)}
             color={colors.green}
             bg={colors.greenBg}
             showChevron
@@ -312,7 +312,7 @@ export default function MenuScreen() {
         <MenuItem
           icon={<Heart size={20} color={colors.goldenDark} />}
           label={t('supportSharekHeart')}
-          onPress={() => router.push('/support')}
+          onPress={() => router.push('/support' as never)}
           color={colors.goldenDark}
           bg={colors.warningBg}
           showChevron
@@ -320,7 +320,7 @@ export default function MenuScreen() {
         <MenuItem
           icon={<BadgeCheck size={20} color="#1DA1F2" />}
           label={profile?.is_verified ? t('verifiedAccount') : t('getVerified')}
-          onPress={() => router.push('/verify-account')}
+          onPress={() => router.push('/verify-account' as never)}
           color="#1DA1F2"
           bg="rgba(29, 161, 242, 0.1)"
           showChevron
@@ -330,7 +330,7 @@ export default function MenuScreen() {
             <MenuItem
               icon={<ShieldCheck size={20} color={colors.brown} />}
               label={t('adminVerification')}
-              onPress={() => router.push('/admin-verification')}
+              onPress={() => router.push('/admin-verification' as never)}
               color={colors.brown}
               bg={colors.surfaceMuted}
               showChevron
@@ -338,7 +338,7 @@ export default function MenuScreen() {
             <MenuItem
               icon={<Star size={20} color={colors.goldenDark} />}
               label={t('adminRatings')}
-              onPress={() => router.push('/admin-ratings')}
+              onPress={() => router.push('/admin-ratings' as never)}
               color={colors.goldenDark}
               bg={colors.warningBg}
               showChevron

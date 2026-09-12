@@ -291,7 +291,12 @@ function FoodForm({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <View style={{ paddingHorizontal: spacing.lg }}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 140 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <BackBar onPress={onBack} />
 
       <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
@@ -309,11 +314,11 @@ function FoodForm({ onBack }: { onBack: () => void }) {
         <View style={styles.photoPicker}>
           <TouchableOpacity style={styles.photoBtn} onPress={pickPhoto}>
             <Camera size={28} color={colors.primary} />
-            <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>Camera</Text>
+            <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>{t('camera')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.photoBtn} onPress={pickFromGallery}>
             <UtensilsCrossed size={28} color={colors.primary} />
-            <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>Gallery</Text>
+            <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>{t('gallery')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -424,7 +429,7 @@ function FoodForm({ onBack }: { onBack: () => void }) {
           </>
         )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -1407,12 +1412,6 @@ function ClaimedList({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  targetOption: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FAFAFA', borderRadius: 8, paddingVertical: 12, borderWidth: 1.5, borderColor: '#EAEAEA' },
-  targetOptionActive: { backgroundColor: '#2E9E5B', borderColor: '#2E9E5B' },
-  targetList: { gap: 12, marginTop: 12 },
-  targetRequest: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FAFAFA', borderRadius: 8, padding: 12, borderWidth: 1.5, borderColor: '#EAEAEA' },
-  targetRequestActive: { borderColor: '#2E9E5B', backgroundColor: '#E8F5EC' },
-
   container: { flex: 1, backgroundColor: colors.background },
   headerCard: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
   headerIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },

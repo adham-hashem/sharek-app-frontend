@@ -39,9 +39,9 @@ export default function RoleScreen() {
 
     const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
     if (orgRoles.includes(role)) {
-      router.replace('/(auth)/mode');
+      router.replace('/(auth)/mode' as never);
     } else {
-      router.replace('/(auth)/country');
+      router.replace('/(auth)/country' as never);
     }
   };
 

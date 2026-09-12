@@ -24,6 +24,7 @@ type SelectedItem =
   | { type: 'request'; id: string }
   | { type: 'food'; id: string }
   | null;
+type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -267,7 +268,7 @@ export default function MapScreen() {
     }
     setLoading(true);
     try {
-      const { items: nearby } = await apiFetch<any>(
+      const { items: nearby } = await apiFetch<{ items: NearbyMapItem[] }>(
         `/v1/map/nearby?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}&radius_km=25`,
       );
       const requestIds = nearby.filter((item) => item.item_type === 'request').map((item) => item.item_id);
@@ -485,7 +486,7 @@ export default function MapScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.push('/notifications')}
+            onPress={() => router.push('/notifications' as never)}
             style={styles.bellBtn}
             activeOpacity={0.7}
           >
