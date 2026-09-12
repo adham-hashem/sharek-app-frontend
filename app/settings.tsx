@@ -11,8 +11,10 @@ import {
 import { router } from 'expo-router';
 import { AppLanguage } from '@/lib/supabase';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
+  const insets = useSafeAreaInsets();
   const {
     t, language, setLanguage, settings, updateSettings,
     signOut, deleteAccount, rtl,
@@ -30,7 +32,7 @@ export default function SettingsScreen() {
 
   const toggleLang = async () => {
     setLangBusy(true);
-    const newLang: AppLanguage = language === 'ar' ? 'en' : 'ar';
+    const newLang = language === 'ar' ? 'en' : 'ar';
     await setLanguage(newLang);
     setLangBusy(false);
   };
@@ -83,7 +85,7 @@ export default function SettingsScreen() {
       <View style={[styles.settingIcon, { backgroundColor: color + '20' }]}>
         {icon}
       </View>
-      <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: `${font}Regular` }]}>
+      <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: ${""}Regular }]}>
         {label}
       </Text>
       <Switch
@@ -96,20 +98,20 @@ export default function SettingsScreen() {
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
-      <ScreenHeader title={t('settings')} />
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl, paddingTop: insets.top }}>
+      <ScreenHeader title={t('settings')} onBack={() => router.replace('/(tabs)/menu')} />
 
       <View style={styles.section}>
-        <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
+        <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: ${""}Bold }]}>
           {t('language2')}
         </Text>
         <TouchableOpacity style={styles.langRow} onPress={toggleLang} disabled={langBusy} activeOpacity={0.7}>
           <Globe size={20} color={colors.primary} />
-          <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: `${font}Regular` }]}>
+          <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: ${""}Regular }]}>
             {language === 'ar' ? t('arabic') : t('english')}
           </Text>
           {langBusy ? <ActivityIndicator size="small" color={colors.primary} /> : (
-            <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
+            <Text style={[typography.small, { color: colors.brownMuted, fontFamily: ${""}SemiBold }]}>
               {language === 'ar' ? 'EN' : 'AR'}
             </Text>
           )}
@@ -117,7 +119,7 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
+        <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: ${""}Bold }]}>
           {t('notifications')}
         </Text>
         <SettingRow
@@ -149,8 +151,8 @@ export default function SettingsScreen() {
           color={colors.green}
         />
         <TouchableOpacity style={styles.locationSystemBtn} onPress={openLocationSettings} activeOpacity={0.7}>
-          <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>
-            {t('locationPermission')} →
+          <Text style={[typography.small, { color: colors.primary, fontFamily: ${""}SemiBold }]}>
+            {t('locationPermission')} ?
           </Text>
         </TouchableOpacity>
       </View>
@@ -158,7 +160,7 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <TouchableOpacity style={styles.privacyRow} onPress={() => router.push('/privacy' as never)} activeOpacity={0.7}>
           <Shield size={20} color={colors.brownMuted} />
-          <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: `${font}Regular` }]}>
+          <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: ${""}Regular }]}>
             {t('privacy')}
           </Text>
           <ChevronLeft size={20} color={colors.brownMuted} style={{ transform: rtl ? [{ scaleX: -1 }] : [] }} />
@@ -174,18 +176,18 @@ export default function SettingsScreen() {
         ]
       )} activeOpacity={0.7}>
         <LogOut size={20} color={colors.error} />
-        <Text style={[typography.bodyBold, { color: colors.error, fontFamily: `${font}Bold` }]}>
+        <Text style={[typography.bodyBold, { color: colors.error, fontFamily: ${""}Bold }]}>
           {t('signOut')}
         </Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.deleteRow} onPress={confirmDelete} disabled={busy} activeOpacity={0.7}>
         {busy ? <ActivityIndicator color={colors.error} size={20} /> : <Trash2 size={20} color={colors.error} />}
-        <Text style={[typography.bodyBold, { color: colors.error, fontFamily: `${font}Bold` }]}>
+        <Text style={[typography.bodyBold, { color: colors.error, fontFamily: ${""}Bold }]}>
           {t('deleteAccount')}
         </Text>
       </TouchableOpacity>
-      <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.xs, fontFamily: `${font}Regular` }]}>
+      <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.xs, fontFamily: ${""}Regular }]}>
         {t('deleteAccountWarning')}
       </Text>
     </ScrollView>

@@ -1,9 +1,11 @@
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Heart, PackageCheck, UtensilsCrossed } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 
 type HistoryPayload = {
@@ -13,7 +15,10 @@ type HistoryPayload = {
   matches: Array<{ id: string; delivery_status: string; status: string; created_at: string }>;
 };
 
+
+
 export default function HistoryScreen() {
+  const insets = useSafeAreaInsets();
   const { t, language } = useAuth();
   const [data, setData] = useState<HistoryPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +31,34 @@ export default function HistoryScreen() {
     try {
       setData(await apiFetch<HistoryPayload>('/v1/history'));
     } catch {
-      setError(true);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const uid = sessionData.session?.user.id;
+      if (!uid) {
+        setError(true);
+        return;
+      }
+      const [requests, foodClaims, helperMatches] = await Promise.all([
+        supabase.from('meal_requests').select('id,meals,status,created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(100),
+        supabase.from('food_claims').select('id,status,created_at').eq('claimer_id', uid).order('created_at', { ascending: false }).limit(100),
+        supabase.from('matches').select('id,delivery_status,status,created_at').eq('helper_id', uid).order('created_at', { ascending: false }).limit(100),
+      ]);
+      if (requests.error || foodClaims.error || helperMatches.error) {
+        setError(true);
+        return;
+      }
+      const requestIds = (requests.data ?? []).map((item) => item.id);
+      const requesterMatches = requestIds.length
+        ? await supabase.from('matches').select('id,delivery_status,status,created_at').in('request_id', requestIds).order('created_at', { ascending: false }).limit(100)
+        : { data: [], error: null };
+      if (requesterMatches.error) {
+        setError(true);
+        return;
+      }
+      const matches = [...(helperMatches.data ?? []), ...(requesterMatches.data ?? [])]
+        .filter((match, index, all) => all.findIndex((candidate) => candidate.id === match.id) === index)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 100);
+      setData({ donations: [], requests: requests.data ?? [], food_claims: foodClaims.data ?? [], matches });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,7 +90,7 @@ export default function HistoryScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.primary} />}
     >
       <ScreenHeader title={t('history')} />

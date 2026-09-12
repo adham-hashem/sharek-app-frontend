@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ActivityIndicator,
   TextInput, ScrollView, Image, Animated, Platform, Alert, Dimensions,
@@ -208,8 +208,11 @@ export default function MapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);
+  const lastMapFetchRef = useRef(0);
   const bottomAnim = useRef(new Animated.Value(0)).current;
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
+  const mapQueryLocationLat = location ? Number(location.latitude.toFixed(3)) : null;
+  const mapQueryLocationLng = location ? Number(location.longitude.toFixed(3)) : null;
 
   const loadLocation = useCallback(async () => {
     setLocating(true);
@@ -225,14 +228,17 @@ export default function MapScreen() {
   }, []);
 
   const loadData = useCallback(async () => {
-    if (!location) {
+    if (mapQueryLocationLat === null || mapQueryLocationLng === null) {
       setLoading(false);
       return;
     }
+    const now = Date.now();
+    if (now - lastMapFetchRef.current < 8000) return;
+    lastMapFetchRef.current = now;
     setLoading(true);
     try {
       const { items: nearby } = await apiFetch<{ items: NearbyMapItem[] }>(
-        `/v1/map/nearby?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}&radius_km=25`,
+        `/v1/map/nearby?latitude=${encodeURIComponent(mapQueryLocationLat)}&longitude=${encodeURIComponent(mapQueryLocationLng)}&radius_km=25`,
       );
       const requestIds = nearby.filter((item) => item.item_type === 'request').map((item) => item.item_id);
       const foodIds = nearby.filter((item) => item.item_type === 'food').map((item) => item.item_id);
@@ -253,7 +259,7 @@ export default function MapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [location]);
+  }, [mapQueryLocationLat, mapQueryLocationLng]);
 
   useEffect(() => {
     loadLocation();
@@ -314,26 +320,12 @@ export default function MapScreen() {
     setSelected(item);
     setActionResult(null);
     Animated.spring(bottomAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }).start();
-    if (item) {
-      const target = item.type === 'request'
-        ? requests.find(r => r.id === item.id)
-        : donations.find(d => d.id === item.id);
-    }
-  }, [requests, donations, bottomAnim]);
+  }, [bottomAnim]);
 
   const hideBottomCard = useCallback(() => {
     Animated.timing(bottomAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
     setTimeout(() => setSelected(null), 200);
   }, [bottomAnim]);
-
-  const onWebViewMessage = useCallback((event: any) => {
-    try {
-      const msg = JSON.parse(event.nativeEvent.data);
-      if (msg.type === 'tap') {
-        showBottomCard({ type: msg.itemType, id: msg.id } as SelectedItem);
-      }
-    } catch { /* ignore */ }
-  }, [showBottomCard]);
 
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
