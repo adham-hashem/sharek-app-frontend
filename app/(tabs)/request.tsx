@@ -15,10 +15,11 @@ import { supabase, FoodDonation, Profile } from '@/lib/supabase';
 import { SuggestedMeals } from '@/components/SuggestedMeals';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { router } from 'expo-router';
-import { apiPost } from '@/lib/api';
+import { apiFetch, apiPost } from '@/lib/api';
 import { createNotification } from '@/lib/notifications';
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
+type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
 
 type NeedyStage = 'browsing' | 'claimed';
 
@@ -159,21 +160,40 @@ function NeedyFlow() {
 
   const loadMeals = useCallback(async () => {
     if (!user) return;
+    if (!location) {
+      setMeals([]);
+      return;
+    }
 
-    const { data: donations } = await supabase
-      .from('food_donations')
-      .select('*')
-      .eq('status', 'available')
-      .neq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
+    let donations: FoodDonation[] = [];
+    try {
+      const { items } = await apiFetch<{ items: NearbyMapItem[] }>(
+        `/v1/map/nearby?latitude=${encodeURIComponent(Number(location.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(location.longitude.toFixed(3)))}&radius_km=25`,
+      );
+      const foodIds = items.filter((item) => item.item_type === 'food').map((item) => item.item_id);
+      if (foodIds.length > 0) {
+        const { data } = await supabase.rpc('get_nearby_food_details', { p_ids: foodIds });
+        donations = (data ?? []) as FoodDonation[];
+      }
+    } catch {
+      const { data } = await supabase
+        .from('food_donations')
+        .select('*')
+        .eq('status', 'available')
+        .neq('user_id', user.id)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(50);
+      donations = (data ?? []) as FoodDonation[];
+    }
 
     if (!donations || donations.length === 0) {
       setMeals([]);
       return;
     }
 
-    const donorIds = [...new Set((donations as FoodDonation[]).map(d => d.user_id))];
+    const visibleDonations = donations.filter(d => d.user_id !== user.id);
+    const donorIds = [...new Set(visibleDonations.map(d => d.user_id))];
     const { data: profiles } = await supabase
       .from('profiles')
       .select('*')
@@ -182,7 +202,7 @@ function NeedyFlow() {
     const profileMap = new Map<string, Profile>();
     (profiles as Profile[] | null)?.forEach(p => profileMap.set(p.id, p));
 
-    const enriched = (donations as FoodDonation[])
+    const enriched = visibleDonations
       .filter(d => !expiredIds.has(d.id))
       .filter(d => new Date(d.expires_at).getTime() > Date.now())
       .map(d => ({

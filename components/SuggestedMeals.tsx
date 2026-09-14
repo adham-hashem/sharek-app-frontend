@@ -12,6 +12,7 @@ import {
 import { supabase, MealRequest, Profile } from '@/lib/supabase';
 import { Coords, haversineKm, ensureLocationPermission, getCurrentLocation } from '@/lib/location';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { apiFetch } from '@/lib/api';
 
 export type RequestListItem = {
   id: string;
@@ -30,6 +31,7 @@ export type RequestListItem = {
 };
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
+type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
 
 function LiveCountdown({ iso, lang, style, onExpire }: { iso: string; lang: 'ar' | 'en'; style?: any; onExpire?: () => void }) {
   const [, setTick] = useState(0);
@@ -97,18 +99,36 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
 
   const loadData = useCallback(async () => {
     if (!user) return;
+    const currentLocation = location ?? myLocation;
 
-    const { data: requests } = await supabase
-      .from('meal_requests')
-      .select('*')
-      .eq('status', 'open')
-      .neq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
+    let requests: MealRequest[] = [];
+    try {
+      if (currentLocation) {
+        const { items } = await apiFetch<{ items: NearbyMapItem[] }>(
+          `/v1/map/nearby?latitude=${encodeURIComponent(Number(currentLocation.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(currentLocation.longitude.toFixed(3)))}&radius_km=25`,
+        );
+        const requestIds = items.filter((item) => item.item_type === 'request').map((item) => item.item_id);
+        if (requestIds.length > 0) {
+          const { data } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
+          requests = (data ?? []) as MealRequest[];
+        }
+      }
+    } catch {
+      const { data } = await supabase
+        .from('meal_requests')
+        .select('*')
+        .eq('status', 'open')
+        .neq('user_id', user.id)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(100);
+      requests = (data ?? []) as MealRequest[];
+    }
 
     if (requests && requests.length > 0) {
-      setDbRequests(requests as MealRequest[]);
-      const userIds = [...new Set((requests as MealRequest[]).map(r => r.user_id))];
+      const visibleRequests = requests.filter(r => r.user_id !== user.id);
+      setDbRequests(visibleRequests);
+      const userIds = [...new Set(visibleRequests.map(r => r.user_id))];
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
@@ -131,7 +151,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
     if (offers) {
       setMyOffers(offers as { id: string; request_id: string; status: string }[]);
     }
-  }, [user]);
+  }, [user, location, myLocation]);
 
   useEffect(() => {
     loadData();
