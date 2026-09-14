@@ -525,6 +525,36 @@ function NeedyFlow() {
                       </View>
                     </View>
 
+                    {/* Details row: food type, pickup time, distance */}
+                    <View style={styles.mealDetailsRow}>
+                      {meal.food_type ? (
+                        <View style={styles.mealDetailTag}>
+                          <UtensilsCrossed size={10} color={colors.primary} />
+                          <Text style={[typography.micro, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>
+                            {meal.food_type}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.mealDetailTag}>
+                        <Navigation size={10} color={colors.greenDark} />
+                        <Text style={[typography.micro, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>
+                          {distText(meal.distance_km)}
+                        </Text>
+                      </View>
+                      <View style={styles.mealDetailTag}>
+                        <Clock size={10} color={colors.brownMuted} />
+                        <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
+                          {formatPickupTime(meal.pickup_start)} - {formatPickupTime(meal.pickup_end)}
+                        </Text>
+                      </View>
+                      <View style={styles.mealDetailTag}>
+                        <UtensilsCrossed size={10} color={colors.brownMuted} />
+                        <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
+                          {meal.meals} {t('meals')}
+                        </Text>
+                      </View>
+                    </View>
+
                     <View style={styles.mealCardDivider} />
 
                     <View style={styles.mealCardBottom}>
@@ -550,18 +580,6 @@ function NeedyFlow() {
                               <Star size={10} color={colors.golden} fill={colors.golden} />
                               <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
                                 {(prof?.rating ?? 0).toFixed(1)}
-                              </Text>
-                            </View>
-                            <View style={styles.donorMetaItem}>
-                              <Navigation size={10} color={colors.greenDark} />
-                              <Text style={[typography.micro, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>
-                                {distText(meal.distance_km)}
-                              </Text>
-                            </View>
-                            <View style={styles.donorMetaItem}>
-                              <UtensilsCrossed size={10} color={colors.primary} />
-                              <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
-                                {meal.meals} {t('meals')}
                               </Text>
                             </View>
                           </View>
@@ -659,6 +677,14 @@ const styles = StyleSheet.create({
   countdownBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 5,
+  },
+  mealDetailsRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.sm,
+  },
+  mealDetailTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.pill,
+    paddingHorizontal: 8, paddingVertical: 3,
   },
   mealCardDivider: {
     height: 1, backgroundColor: colors.borderLight, marginVertical: spacing.md,

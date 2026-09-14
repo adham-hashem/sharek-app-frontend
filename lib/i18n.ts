@@ -400,6 +400,23 @@ const ar: Dict = {
   verifiedAccounts: 'الحسابات الموثقة',
   verificationFees: 'رسوم التوثيق',
   verificationRevenue: 'إيرادات التوثيق',
+
+  // Request page keys
+  availableMealsNearby: 'الوجبات المتاحة بالقرب منك',
+  needMealSub: 'اختر وجبة متاحة بالقرب منك واطلبها مباشرة',
+  noMealsAvailable: 'لا توجد وجبات متاحة حالياً',
+  noMealsAvailableDesc: 'لا توجد وجبات متاحة في نطاقك حالياً. ستظهر هنا فور توفر وجبة جديدة.',
+  partnerMeal: 'وجبة مقدمة من متبرع',
+  orderMealBtn: 'اطلب الوجبة',
+  activeMatchTitle: 'طلباتك النشطة',
+  offerAcceptedChat: 'تم حجز الوجبة! تواصل مع المتبرع لتنسيق الاستلام',
+  readyForPickup: 'جاهز للاستلام',
+  waitingPartnerReady: 'بانتظار تجهيز الوجبة',
+  openChatWithPartner: 'فتح المحادثة',
+  confirmReceivedMatch: 'تأكيد استلام الوجبة',
+  pickupTime: 'وقت الاستلام',
+  foodTypeLabel: 'النوع',
+  mealDetails: 'تفاصيل الوجبة',
 };
 
 const en: Dict = {
@@ -775,6 +792,23 @@ const en: Dict = {
   verifiedAccounts: 'Verified accounts',
   verificationFees: 'Verification fees',
   verificationRevenue: 'Verification revenue',
+
+  // Request page keys
+  availableMealsNearby: 'Available Meals Nearby',
+  needMealSub: 'Choose an available meal near you and claim it',
+  noMealsAvailable: 'No Meals Available',
+  noMealsAvailableDesc: 'No meals available in your area right now. New ones will appear here.',
+  partnerMeal: 'Shared by a donor',
+  orderMealBtn: 'Claim Meal',
+  activeMatchTitle: 'Active Orders',
+  offerAcceptedChat: 'Meal reserved! Chat with the donor to coordinate pickup',
+  readyForPickup: 'Ready for pickup',
+  waitingPartnerReady: 'Waiting for preparation',
+  openChatWithPartner: 'Open Chat',
+  confirmReceivedMatch: 'Confirm Received',
+  pickupTime: 'Pickup time',
+  foodTypeLabel: 'Type',
+  mealDetails: 'Meal details',
 };
 
 const dictionaries: Record<AppLanguage, Dict> = { ar, en };
