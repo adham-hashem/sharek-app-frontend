@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
+import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -19,7 +19,7 @@ Notifications?.setNotificationHandler({
   }),
 });
 
-let soundObj: Audio.Sound | null = null;
+let soundObj: AudioPlayer | null = null;
 
 const SOUND_FILES = {
   request: require('../assets/sounds/request.wav'),
@@ -39,20 +39,18 @@ export async function playNotificationSound(type: SoundType = 'default') {
   
   try {
     if (soundObj) {
-      await soundObj.unloadAsync();
+      soundObj.release();
       soundObj = null;
     }
     
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: true,
+    await setAudioModeAsync({
+      playsInSilentMode: true,
+      shouldPlayInBackground: true,
     });
     
     if (type !== 'default' && SOUND_FILES[type]) {
-      const { sound } = await Audio.Sound.createAsync(SOUND_FILES[type]);
-      soundObj = sound;
-      await soundObj.playAsync();
+      soundObj = createAudioPlayer(SOUND_FILES[type]);
+      soundObj.play();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     }
