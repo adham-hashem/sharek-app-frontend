@@ -16,6 +16,7 @@ import {
 } from 'lucide-react-native';
 
 type ScreenMode = 'loading' | 'apply' | 'processing' | 'success' | 'status';
+const PAYMENTS_ENABLED = false;
 
 export default function VerifyAccountScreen() {
   const { t, language, rtl, profile, session, refreshProfile } = useAuth();
@@ -36,6 +37,10 @@ export default function VerifyAccountScreen() {
 
   const loadData = useCallback(async () => {
     if (!session?.user) return;
+    if (!PAYMENTS_ENABLED) {
+      setMode(profile?.is_verified ? 'status' : 'apply');
+      return;
+    }
     const { data: feeData } = await supabase
       .rpc('get_verification_fee', { p_country_code: countryCode })
       .maybeSingle();
@@ -76,6 +81,10 @@ export default function VerifyAccountScreen() {
   };
 
   const handlePayAndApply = async () => {
+    if (!PAYMENTS_ENABLED) {
+      setError(t('paymentsDisabledNow'));
+      return;
+    }
     if (!fee || fee.amount <= 0) return;
     setBusy(true);
     setError('');
@@ -152,7 +161,7 @@ export default function VerifyAccountScreen() {
   if (mode === 'loading') {
     return (
       <View style={styles.container}>
-        <ScreenHeader title={t('getVerified')} />
+        <ScreenHeader title={t('getVerified')} onBack={() => router.replace('/(tabs)/menu')} />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -163,7 +172,7 @@ export default function VerifyAccountScreen() {
   if (mode === 'processing') {
     return (
       <View style={styles.container}>
-        <ScreenHeader title={t('getVerified')} />
+        <ScreenHeader title={t('getVerified')} onBack={() => router.replace('/(tabs)/menu')} />
         <View style={styles.processingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[typography.heading, { color: colors.brown, marginTop: spacing.lg, fontFamily: `${font}Bold` }]}>
@@ -188,7 +197,7 @@ export default function VerifyAccountScreen() {
 
     return (
       <View style={styles.container}>
-        <ScreenHeader title={t('getVerified')} />
+        <ScreenHeader title={t('getVerified')} onBack={() => router.replace('/(tabs)/menu')} />
         <ScrollView
           contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -282,7 +291,7 @@ export default function VerifyAccountScreen() {
   // Apply mode
   return (
     <View style={styles.container}>
-      <ScreenHeader title={t('getVerified')} />
+      <ScreenHeader title={t('getVerified')} onBack={() => router.replace('/(tabs)/menu')} />
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -326,7 +335,7 @@ export default function VerifyAccountScreen() {
         </View>
 
         {/* Fee display */}
-        {fee && (
+        {fee && PAYMENTS_ENABLED && (
           <View style={styles.feeCard}>
             <View style={styles.feeRow}>
               <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
@@ -361,7 +370,7 @@ export default function VerifyAccountScreen() {
         <TouchableOpacity
           style={styles.payAndApplyBtn}
           onPress={handlePayAndApply}
-          disabled={busy || !fee}
+          disabled={busy || !PAYMENTS_ENABLED || !fee}
           activeOpacity={0.8}
         >
           {busy ? <ActivityIndicator color={colors.white} size={20} /> : (
@@ -375,7 +384,7 @@ export default function VerifyAccountScreen() {
         </TouchableOpacity>
 
         <Text style={[typography.caption, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.md, fontFamily: `${font}Regular` }]}>
-          {t('securePayment')}
+          {PAYMENTS_ENABLED ? t('securePayment') : t('paymentsDisabledNow')}
         </Text>
       </ScrollView>
     </View>

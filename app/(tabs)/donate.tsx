@@ -128,10 +128,14 @@ export default function DonateScreen() {
 }
 
 function BackBar({ onPress }: { onPress: () => void }) {
-  const { rtl } = useAuth();
+  const { rtl, t, language } = useAuth();
+  const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   return (
-    <TouchableOpacity style={styles.backBar} onPress={onPress}>
+    <TouchableOpacity style={styles.backBar} onPress={onPress} activeOpacity={0.8}>
       <ChevronLeft size={22} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
+      <Text style={[typography.small, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+        {t('back')}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -244,9 +248,8 @@ function FoodForm({ onBack }: { onBack: () => void }) {
       }
     }
 
-    try {
-      const now = new Date();
-      await apiPost<FoodDonation>('/v1/food-donations', {
+    const now = new Date();
+    const payload = {
         food_name: foodName.trim(),
         description: description.trim(),
         image_url: imageUrl,
@@ -258,11 +261,25 @@ function FoodForm({ onBack }: { onBack: () => void }) {
         longitude: publishLocation.longitude,
         prepared_at: now.toISOString(),
         allergens: allergens.trim() || undefined,
-      });
+    };
+
+    try {
+      await apiPost<FoodDonation>('/v1/food-donations', payload);
     } catch (error) {
-      setSubmitting(false);
-      Alert.alert(t('errorGeneric'), error instanceof Error ? error.message : undefined);
-      return;
+      const { error: dbError } = await supabase
+        .from('food_donations')
+        .insert({ ...payload, user_id: user!.id, status: 'available' })
+        .select()
+        .single();
+
+      if (dbError) {
+        setSubmitting(false);
+        Alert.alert(
+          t('publishFoodFailed'),
+          dbError.message || (error instanceof Error ? error.message : t('errorGeneric')),
+        );
+        return;
+      }
     }
     setSubmitting(false);
     setPublished(true);

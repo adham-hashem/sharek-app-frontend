@@ -15,6 +15,7 @@ import {
 } from 'lucide-react-native';
 
 const PRESET_AMOUNTS = [1, 5, 10, 25, 50];
+const PAYMENTS_ENABLED = false;
 
 type ScreenMode = 'select' | 'processing' | 'success' | 'failed' | 'cancelled' | 'history';
 
@@ -40,7 +41,7 @@ export default function SupportScreen() {
   const amount = selectedAmount ?? (customAmount ? parseFloat(customAmount) : 0);
 
   const fetchHistory = useCallback(async () => {
-    if (!session?.user) return;
+    if (!PAYMENTS_ENABLED || !session?.user) return;
     const { data, error } = await supabase
       .from('support_transactions')
       .select('*')
@@ -52,6 +53,7 @@ export default function SupportScreen() {
   }, [session]);
 
   useEffect(() => {
+    if (!PAYMENTS_ENABLED) return;
     fetchHistory();
     const sub = supabase
       .channel('support_tx_changes')
@@ -67,6 +69,10 @@ export default function SupportScreen() {
   };
 
   const handlePayment = async () => {
+    if (!PAYMENTS_ENABLED) {
+      setErrorMsg(t('paymentsDisabledNow'));
+      return;
+    }
     if (amount <= 0) return;
     setBusy(true);
     setErrorMsg('');
@@ -292,7 +298,7 @@ export default function SupportScreen() {
   // --- Main Selection View ---
   return (
     <View style={styles.container}>
-      <ScreenHeader title={t('supportSharek')} style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl }} />
+      <ScreenHeader title={t('supportSharek')} onBack={() => router.replace('/(tabs)/menu')} style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl }} />
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 120 }}
         keyboardShouldPersistTaps="handled"
@@ -383,7 +389,7 @@ export default function SupportScreen() {
         <View style={styles.securityNote}>
           <Shield size={16} color={colors.green} />
           <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-            {t('securePayment')}
+            {PAYMENTS_ENABLED ? t('securePayment') : t('paymentsDisabledNow')}
           </Text>
         </View>
 
