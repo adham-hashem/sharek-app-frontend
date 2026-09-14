@@ -285,9 +285,6 @@ export default function MapScreen() {
 
   useEffect(() => {
     loadData();
-    supabase.rpc('expire_food_donations').then(({ error }) => {
-      if (!error) loadData();
-    });
     const sub = supabase
       .channel('map_live_v2')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_requests' }, loadData)
