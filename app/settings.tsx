@@ -72,6 +72,27 @@ export default function SettingsScreen() {
     );
   };
 
+  const confirmSignOut = () => {
+    Alert.alert(
+      t('signOut'),
+      t('signOut') + '?',
+      [
+        { text: t('back'), style: 'cancel' },
+        {
+          text: t('signOut'),
+          style: 'destructive',
+          onPress: async () => {
+            setBusy(true);
+            await signOut();
+            setBusy(false);
+            router.dismissAll();
+            router.replace('/(auth)/welcome');
+          },
+        },
+      ],
+    );
+  };
+
   const SettingRow = ({
     icon, label, value, onToggle, color,
   }: {
@@ -167,15 +188,8 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.signOutRow} onPress={() => Alert.alert(
-        t('signOut'),
-        t('signOut') + '?',
-        [
-          { text: t('back'), style: 'cancel' },
-          { text: t('signOut'), style: 'destructive', onPress: () => signOut() },
-        ]
-      )} activeOpacity={0.7}>
-        <LogOut size={20} color={colors.error} />
+      <TouchableOpacity style={styles.signOutRow} onPress={confirmSignOut} disabled={busy} activeOpacity={0.7}>
+        {busy ? <ActivityIndicator color={colors.error} size={20} /> : <LogOut size={20} color={colors.error} />}
         <Text style={[typography.bodyBold, { color: colors.error, fontFamily: `${font}Bold` }]}>
           {t('signOut')}
         </Text>

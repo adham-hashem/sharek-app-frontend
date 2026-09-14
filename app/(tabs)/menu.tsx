@@ -107,7 +107,15 @@ export default function MenuScreen() {
       t('signOut') + '?',
       [
         { text: t('back'), style: 'cancel' },
-        { text: t('signOut'), style: 'destructive', onPress: async () => { await signOut(); router.dismissAll(); router.replace('/(auth)/welcome'); } },
+        {
+          text: t('signOut'),
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.dismissAll();
+            router.replace('/(auth)/welcome');
+          },
+        },
       ]
     );
   };

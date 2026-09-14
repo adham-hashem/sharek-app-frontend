@@ -20,7 +20,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithOAuth: (provider: 'google' | 'facebook') => Promise<{ error: string | null, url: string | null }>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ error: string | null }>;
   updateRole: (role: UserRole) => Promise<{ error: string | null }>;
   updateMode: (mode: UserMode) => Promise<{ error: string | null }>;
   updateProfile: (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'currency' | 'avatar_url'>>) => Promise<{ error: string | null }>;
@@ -202,10 +202,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // A local sign-out clears the persisted device session immediately. It must
+    // not depend on a network round trip, otherwise a user can appear stuck in
+    // their account while offline or when the auth service is unavailable.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     setProfile(null);
     setSettings(null);
     setSession(null);
+    return { error: error ? 'authError' : null };
   }, []);
 
   const updateRole = useCallback(async (role: UserRole) => {
