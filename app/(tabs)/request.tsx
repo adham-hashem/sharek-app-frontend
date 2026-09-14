@@ -100,13 +100,6 @@ function mapItemToFoodDonation(item: NearbyMapItem): FoodDonation {
 }
 
 export default function RequestScreen() {
-  const { profile } = useAuth();
-  const isNeeder = profile?.mode === 'needer' || profile?.role === 'needer';
-
-  if (!isNeeder) {
-    return <DonorView />;
-  }
-
   return <NeedyFlow />;
 }
 
