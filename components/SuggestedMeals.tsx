@@ -33,6 +33,19 @@ export type RequestListItem = {
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
 type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
 
+// Meal requests intentionally have a short, server-enforced discovery window.
+// Unlike food donations, the database table has no expires_at column; derive the
+// same 10-minute window used by get_nearby_map_items instead of treating every
+// returned request as expired.
+const REQUEST_DISCOVERY_WINDOW_MS = 10 * 60 * 1000;
+
+function withRequestExpiry(request: Omit<MealRequest, 'expires_at'> | MealRequest): MealRequest {
+  return {
+    ...request,
+    expires_at: ('expires_at' in request && request.expires_at) || new Date(new Date(request.created_at).getTime() + REQUEST_DISCOVERY_WINDOW_MS).toISOString(),
+  } as MealRequest;
+}
+
 function LiveCountdown({ iso, lang, style, onExpire }: { iso: string; lang: 'ar' | 'en'; style?: any; onExpire?: () => void }) {
   const [, setTick] = useState(0);
   const expired = React.useRef(false);
@@ -110,7 +123,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         const requestIds = items.filter((item) => item.item_type === 'request').map((item) => item.item_id);
         if (requestIds.length > 0) {
           const { data } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
-          requests = (data ?? []) as MealRequest[];
+          requests = (data ?? []).map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
         }
       }
     } catch {
@@ -119,10 +132,10 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         .select('*')
         .eq('status', 'open')
         .neq('user_id', user.id)
-        .gt('expires_at', new Date().toISOString())
+        .gt('created_at', new Date(Date.now() - REQUEST_DISCOVERY_WINDOW_MS).toISOString())
         .order('created_at', { ascending: false })
         .limit(100);
-      requests = (data ?? []) as MealRequest[];
+      requests = (data ?? []).map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
     }
 
     if (requests && requests.length > 0) {
