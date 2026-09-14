@@ -142,9 +142,10 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         const requestIds = items.filter((item) => item.item_type === 'request').map((item) => item.item_id);
         if (requestIds.length > 0) {
           const { data, error } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
-          requests = error
-            ? items.filter((item) => item.item_type === 'request').map(mapItemToRequest)
-            : (data ?? []).map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
+          const fallback = items.filter((item) => item.item_type === 'request').map(mapItemToRequest);
+          requests = error || !data?.length
+            ? fallback
+            : data.map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
         }
       }
     } catch {

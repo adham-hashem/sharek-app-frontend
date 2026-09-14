@@ -19,6 +19,22 @@ import { ensureLocationPermission, getCurrentLocation, watchLocation, Coords, ha
 import { LiveMatchMap } from '@/components/LiveMatchMap';
 
 type MainTab = 'choose' | 'food' | 'money' | 'requests' | 'claimed';
+type NearbyRequestMapItem = {
+  item_type: 'request' | 'food'; item_id: string; user_id?: string; meals?: number;
+  timing?: 'now' | 'later'; status?: 'open'; latitude?: number; longitude?: number;
+  created_at?: string; updated_at?: string; expires_at?: string;
+};
+
+function mapItemToRequest(item: NearbyRequestMapItem): MealRequest {
+  const createdAt = item.created_at ?? new Date().toISOString();
+  return {
+    id: item.item_id, user_id: item.user_id ?? '', meals: item.meals ?? 1,
+    timing: item.timing ?? 'now', status: 'open', latitude: item.latitude ?? 0,
+    longitude: item.longitude ?? 0, created_at: createdAt,
+    updated_at: item.updated_at ?? createdAt,
+    expires_at: item.expires_at ?? new Date(new Date(createdAt).getTime() + 30 * 60 * 1000).toISOString(),
+  };
+}
 
 export default function DonateScreen() {
   const { t, language, profile } = useAuth();
@@ -791,14 +807,14 @@ function RequestsList({ onBack }: { onBack: () => void }) {
     }
     let data: any[] | null = null;
     try {
-      const { items } = await apiFetch<{ items: Array<{ item_type: 'request' | 'food'; item_id: string }> }>(
+      const { items } = await apiFetch<{ items: NearbyRequestMapItem[] }>(
         `/v1/map/nearby?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}&radius_km=25`,
       );
       const requestIds = items.filter(item => item.item_type === 'request').map(item => item.item_id);
       if (requestIds.length > 0) {
         const result = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
-        if (result.error) throw result.error;
-        data = result.data as any[] | null;
+        const fallback = items.filter(item => item.item_type === 'request').map(mapItemToRequest);
+        data = result.error || !result.data?.length ? fallback : result.data as any[];
       } else {
         data = [];
       }
