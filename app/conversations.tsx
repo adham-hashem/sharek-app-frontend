@@ -30,12 +30,30 @@ export default function ConversationsScreen() {
   const load = useCallback(async () => {
     if (!user) return;
 
-    // Get all food claims involving this user (as claimer or as donation owner)
-    const { data: claims } = await supabase
+    const { data: ownClaims } = await supabase
       .from('food_claims')
       .select('*, food_donation:food_donations(*)')
-      .or(`claimer_id.eq.${user.id},food_donation.user_id.eq.${user.id}`)
+      .eq('claimer_id', user.id)
       .order('created_at', { ascending: false });
+
+    const { data: ownDonations } = await supabase
+      .from('food_donations')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    const donationIds = (ownDonations ?? []).map((donation) => donation.id);
+    const { data: donorClaims } = donationIds.length
+      ? await supabase
+        .from('food_claims')
+        .select('*, food_donation:food_donations(*)')
+        .in('food_donation_id', donationIds)
+        .order('created_at', { ascending: false })
+      : { data: [] };
+
+    const claims = [...(ownClaims ?? []), ...(donorClaims ?? [])]
+      .filter((claim, index, all) => all.findIndex((candidate) => candidate.id === claim.id) === index)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     if (!claims || claims.length === 0) {
       setRows([]);

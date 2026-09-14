@@ -15,6 +15,13 @@ type HistoryPayload = {
   matches: Array<{ id: string; delivery_status: string; status: string; created_at: string }>;
 };
 
+const emptyHistory: HistoryPayload = {
+  donations: [],
+  requests: [],
+  food_claims: [],
+  matches: [],
+};
+
 
 
 export default function HistoryScreen() {
@@ -42,23 +49,21 @@ export default function HistoryScreen() {
         supabase.from('food_claims').select('id,status,created_at').eq('claimer_id', uid).order('created_at', { ascending: false }).limit(100),
         supabase.from('matches').select('id,delivery_status,status,created_at').eq('helper_id', uid).order('created_at', { ascending: false }).limit(100),
       ]);
-      if (requests.error || foodClaims.error || helperMatches.error) {
-        setError(true);
-        return;
-      }
-      const requestIds = (requests.data ?? []).map((item) => item.id);
+      const partialError = Boolean(requests.error || foodClaims.error || helperMatches.error);
+      const requestRows = requests.error ? [] : (requests.data ?? []);
+      const foodClaimRows = foodClaims.error ? [] : (foodClaims.data ?? []);
+      const helperMatchRows = helperMatches.error ? [] : (helperMatches.data ?? []);
+      const requestIds = requestRows.map((item) => item.id);
       const requesterMatches = requestIds.length
         ? await supabase.from('matches').select('id,delivery_status,status,created_at').in('request_id', requestIds).order('created_at', { ascending: false }).limit(100)
         : { data: [], error: null };
-      if (requesterMatches.error) {
-        setError(true);
-        return;
-      }
-      const matches = [...(helperMatches.data ?? []), ...(requesterMatches.data ?? [])]
+      const requesterMatchRows = requesterMatches.error ? [] : (requesterMatches.data ?? []);
+      const matches = [...helperMatchRows, ...requesterMatchRows]
         .filter((match, index, all) => all.findIndex((candidate) => candidate.id === match.id) === index)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 100);
-      setData({ donations: [], requests: requests.data ?? [], food_claims: foodClaims.data ?? [], matches });
+      setData({ ...emptyHistory, requests: requestRows, food_claims: foodClaimRows, matches });
+      setError(partialError || Boolean(requesterMatches.error));
     } finally {
       setLoading(false);
       setRefreshing(false);
