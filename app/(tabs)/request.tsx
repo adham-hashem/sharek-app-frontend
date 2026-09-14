@@ -222,7 +222,6 @@ function NeedyFlow() {
         .from('food_donations')
         .select('*')
         .eq('status', 'available')
-        .neq('user_id', user.id)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
@@ -234,7 +233,7 @@ function NeedyFlow() {
       return;
     }
 
-    const visibleDonations = donations.filter(d => d.user_id !== user.id);
+    const visibleDonations = donations;
     const donorIds = [...new Set(visibleDonations.map(d => d.user_id))];
     const profileMap = new Map<string, Profile>();
     if (donorIds.length > 0) {
@@ -500,6 +499,7 @@ function NeedyFlow() {
               const isUrgent = new Date(meal.expires_at).getTime() - Date.now() < 3600_000;
               const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
               const prof = meal.donor_profile;
+              const isOwnFood = meal.user_id === user?.id;
 
               return (
                 <View key={meal.id} style={styles.mealCard}>
@@ -576,9 +576,9 @@ function NeedyFlow() {
                       </View>
 
                       <TouchableOpacity
-                        style={[styles.orderBtn, claimingId === meal.id && { opacity: 0.6 }]}
+                        style={[styles.orderBtn, (claimingId === meal.id || isOwnFood) && { opacity: 0.6 }]}
                         onPress={() => claimMeal(meal)}
-                        disabled={claimingId === meal.id}
+                        disabled={claimingId === meal.id || isOwnFood}
                         activeOpacity={0.8}
                       >
                         {claimingId === meal.id ? (
@@ -587,7 +587,7 @@ function NeedyFlow() {
                           <>
                             <Heart size={16} color={colors.white} fill={colors.white} />
                             <Text style={[typography.small, { color: colors.white, fontFamily: `${font}Bold` }]}>
-                              {t('orderMealBtn')}
+                              {isOwnFood ? (language === 'ar' ? 'وجبتك' : 'Your meal') : t('orderMealBtn')}
                             </Text>
                           </>
                         )}
