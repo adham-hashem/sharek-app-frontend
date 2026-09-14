@@ -22,6 +22,7 @@ const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#
 type NearbyMapItem = {
   item_type: 'request' | 'food';
   item_id: string;
+  user_id?: string;
   title?: string;
   meals?: number;
   latitude?: number;
@@ -72,7 +73,7 @@ function mapItemToFoodDonation(item: NearbyMapItem): FoodDonation {
   const expiresAt = item.expires_at ?? new Date(Date.now() + 60 * 60 * 1000).toISOString();
   return {
     id: item.item_id,
-    user_id: '',
+    user_id: item.user_id ?? '',
     food_name: item.title || 'Available food',
     description: '',
     image_url: null,
@@ -100,7 +101,7 @@ function mapItemToFoodDonation(item: NearbyMapItem): FoodDonation {
 
 export default function RequestScreen() {
   const { profile } = useAuth();
-  const isNeeder = profile?.mode === 'needer';
+  const isNeeder = profile?.mode === 'needer' || profile?.role === 'needer';
 
   if (!isNeeder) {
     return <DonorView />;
