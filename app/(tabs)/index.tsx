@@ -205,7 +205,6 @@ export default function MapScreen() {
   const [actionBusy, setActionBusy] = useState(false);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [claimedDonation, setClaimedDonation] = useState<FoodDonation | null>(null);
-  const [mapReady, setMapReady] = useState(false);
   const [unreadNotifs, setUnreadNotifs] = useState(0);
   const [hasCenteredOnUser, setHasCenteredOnUser] = useState(false);
   const lastMapFetchRef = useRef(0);
@@ -530,7 +529,7 @@ export default function MapScreen() {
           font={font}
           t={t}
           onSelect={showBottomCard}
-          onReady={() => setMapReady(true)}
+          onReady={() => undefined}
         />
         {/* Suggested meals for needer â€” below map, same scroll */}
         {effectiveMode === 'needer' && (

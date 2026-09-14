@@ -2,6 +2,13 @@ import { supabase, NotificationType, Notification, AppLanguage, UserSettings } f
 import { playNotificationSound, vibrateDevice } from './sound';
 import { Platform } from 'react-native';
 
+let notificationsTableUnavailable = false;
+
+function isMissingNotificationsTable(error: unknown): boolean {
+  const value = error as { code?: string; message?: string };
+  return value?.code === '42P01' || value?.code === 'PGRST205' || Boolean(value?.message?.includes("Could not find the table"));
+}
+
 export interface NotificationMeta {
   icon: string;
   color: string;
@@ -132,13 +139,18 @@ export function getNotificationRoute(notif: Notification): string | null {
 }
 
 export async function fetchNotifications(userId: string): Promise<Notification[]> {
+  if (notificationsTableUnavailable) return [];
   const { data, error } = await supabase
     .from('notifications')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(100);
-  if (error || !data) return [];
+  if (error) {
+    if (isMissingNotificationsTable(error)) notificationsTableUnavailable = true;
+    return [];
+  }
+  if (!data) return [];
   return data as Notification[];
 }
 
@@ -154,12 +166,17 @@ export async function markAllNotificationsRead(): Promise<void> {
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
+  if (notificationsTableUnavailable) return 0;
   const { count, error } = await supabase
     .from('notifications')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
     .is('read_at', null);
-  if (error || count === null) return 0;
+  if (error) {
+    if (isMissingNotificationsTable(error)) notificationsTableUnavailable = true;
+    return 0;
+  }
+  if (count === null) return 0;
   return count;
 }
 

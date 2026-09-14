@@ -31,9 +31,15 @@ export function ScreenHeader({ title, onBack, rightElement, showBack = true, sty
   return (
     <View style={[styles.header, style]}>
       {showBack ? (
-        <TouchableOpacity onPress={handleBack} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={language === 'ar' ? 'رجوع' : 'Back'}
+        >
           <ChevronLeft
-            size={26}
+            size={24}
             color={colors.brown}
             style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }}
           />
@@ -64,12 +70,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   backPlaceholder: {
     width: 40,
