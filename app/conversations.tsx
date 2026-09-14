@@ -93,9 +93,20 @@ export default function ConversationsScreen() {
         .limit(1)
         .maybeSingle();
 
+      // A profile can be unavailable briefly (deleted account, RLS, or a
+      // partially-created profile). Conversations must remain usable anyway.
+      const safeProfile = (profile as Profile | null) ?? ({
+        id: otherId,
+        full_name: language === 'ar' ? 'مستخدم SHARek' : 'SHARek user',
+        email: '', role: 'skipped', language, phone: '', country: '', currency: 'USD',
+        avatar_url: null, rating: 0, meals_helped: 0, meals_received: 0,
+        contributor_level: 0, is_verified: false, verified_at: null, is_admin: false,
+        religion: null, created_at: '', updated_at: '', mode: null,
+      } as Profile);
+
       convos.push({
         donation,
-        otherUser: profile as Profile,
+        otherUser: safeProfile,
         unreadCount: unread ?? 0,
         lastMessageAt: lastMsg?.created_at ?? claim.created_at,
       });
