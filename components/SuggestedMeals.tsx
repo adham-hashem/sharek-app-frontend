@@ -31,7 +31,11 @@ export type RequestListItem = {
 };
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
-type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
+type NearbyMapItem = {
+  item_type: 'request' | 'food'; item_id: string; user_id?: string; meals?: number;
+  timing?: 'now' | 'later'; status?: 'open'; latitude?: number; longitude?: number;
+  created_at?: string; updated_at?: string; expires_at?: string;
+};
 
 // Meal requests intentionally have a short, server-enforced discovery window.
 // Unlike food donations, the database table has no expires_at column; derive the
@@ -44,6 +48,21 @@ function withRequestExpiry(request: Omit<MealRequest, 'expires_at'> | MealReques
     ...request,
     expires_at: ('expires_at' in request && request.expires_at) || new Date(new Date(request.created_at).getTime() + REQUEST_DISCOVERY_WINDOW_MS).toISOString(),
   } as MealRequest;
+}
+
+function mapItemToRequest(item: NearbyMapItem): MealRequest {
+  const createdAt = item.created_at ?? new Date().toISOString();
+  return withRequestExpiry({
+    id: item.item_id,
+    user_id: item.user_id ?? '',
+    meals: item.meals ?? 1,
+    timing: item.timing ?? 'now',
+    status: 'open',
+    latitude: item.latitude ?? 0,
+    longitude: item.longitude ?? 0,
+    created_at: createdAt,
+    updated_at: item.updated_at ?? createdAt,
+  });
 }
 
 function LiveCountdown({ iso, lang, style, onExpire }: { iso: string; lang: 'ar' | 'en'; style?: any; onExpire?: () => void }) {
@@ -122,8 +141,10 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         );
         const requestIds = items.filter((item) => item.item_type === 'request').map((item) => item.item_id);
         if (requestIds.length > 0) {
-          const { data } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
-          requests = (data ?? []).map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
+          const { data, error } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
+          requests = error
+            ? items.filter((item) => item.item_type === 'request').map(mapItemToRequest)
+            : (data ?? []).map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
         }
       }
     } catch {

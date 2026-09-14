@@ -24,7 +24,27 @@ type SelectedItem =
   | { type: 'request'; id: string }
   | { type: 'food'; id: string }
   | null;
-type NearbyMapItem = { item_type: 'request' | 'food'; item_id: string };
+type NearbyMapItem = {
+  item_type: 'request' | 'food'; item_id: string; user_id?: string; meals?: number;
+  timing?: 'now' | 'later'; status?: 'open'; latitude?: number; longitude?: number;
+  created_at?: string; updated_at?: string; expires_at?: string;
+};
+
+function mapItemToRequest(item: NearbyMapItem): MealRequest {
+  const createdAt = item.created_at ?? new Date().toISOString();
+  return {
+    id: item.item_id,
+    user_id: item.user_id ?? '',
+    meals: item.meals ?? 1,
+    timing: item.timing ?? 'now',
+    status: 'open',
+    latitude: item.latitude ?? 0,
+    longitude: item.longitude ?? 0,
+    created_at: createdAt,
+    updated_at: item.updated_at ?? createdAt,
+    expires_at: item.expires_at ?? new Date(new Date(createdAt).getTime() + 30 * 60 * 1000).toISOString(),
+  };
+}
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -249,9 +269,12 @@ export default function MapScreen() {
           ? supabase.rpc('get_nearby_food_details', { p_ids: foodIds })
           : Promise.resolve({ data: [], error: null }),
       ]);
-      if (r.error || f.error) throw new Error('Unable to load nearby details');
-      if (r.data) setRequests(r.data as MealRequest[]);
-      if (f.data) setDonations(f.data as FoodDonation[]);
+      // A request marker must not disappear merely because the optional detail
+      // RPC is unavailable or temporarily behind a migration.
+      const requestFallback = nearby.filter((item) => item.item_type === 'request').map(mapItemToRequest);
+      setRequests(r.error ? requestFallback : (r.data as MealRequest[] ?? requestFallback));
+      if (f.error) setDonations([]);
+      else setDonations((f.data as FoodDonation[] | null) ?? []);
     } catch {
       setRequests([]);
       setDonations([]);
