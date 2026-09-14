@@ -18,7 +18,7 @@ type Props = {
 
 export function SharekMap({ location, locating, requests, donations, font, t, onSelect, onReady }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const html = useMemo(() => makeLeafletHtml(), []);
+  const html = useMemo(() => makeGoogleMapHtml(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY), []);
 
   const post = (message: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage(message, '*');
@@ -65,20 +65,24 @@ export function SharekMap({ location, locating, requests, donations, font, t, on
   );
 }
 
-function makeLeafletHtml() {
+function makeGoogleMapHtml(apiKey?: string) {
+  const key = (apiKey ?? '').trim();
+  if (!key) {
+    return `<!DOCTYPE html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#eef5f0;font-family:Arial;color:#5D4037;text-align:center;padding:24px;box-sizing:border-box">
+      <div>Google Maps API key is not configured.<br/>Set EXPO_PUBLIC_GOOGLE_MAPS_API_KEY on Vercel.</div>
+    </body></html>`;
+  }
   return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<style>html,body,#map{margin:0;padding:0;height:100%;width:100%;background:#e8efe8}.sharek-marker{background:transparent!important;border:none!important}</style></head>
-<body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
-var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:.5}).setView([24.4539,54.3773],6);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}).addTo(map);
-var markers={},userMarker=null,accuracyCircle=null;
-function icon(emoji,color){return L.divIcon({className:'sharek-marker',html:'<div style="width:40px;height:40px;border-radius:20px;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.3)">'+emoji+'</div>',iconSize:[40,40],iconAnchor:[20,20]})}
-function userIcon(){return L.divIcon({className:'sharek-marker',html:'<div style="width:18px;height:18px;border-radius:50%;background:#1E88E5;border:3px solid white;box-shadow:0 0 0 2px rgba(30,136,229,.35)"></div>',iconSize:[18,18],iconAnchor:[9,9]})}
-function update(data){data=data||{};var seen={};(data.requests||[]).forEach(function(r){var k='r_'+r.id;seen[k]=1;if(!markers[k]){markers[k]=L.marker([r.latitude,r.longitude],{icon:icon('❤️','#F7564C')}).addTo(map).on('click',function(){parent.postMessage({type:'tap',itemType:'request',id:r.id},'*')})}else markers[k].setLatLng([r.latitude,r.longitude])});(data.donations||[]).forEach(function(d){var k='d_'+d.id;seen[k]=1;if(!markers[k]){markers[k]=L.marker([d.latitude,d.longitude],{icon:icon('🍱','#2E9E5B')}).addTo(map).on('click',function(){parent.postMessage({type:'tap',itemType:'food',id:d.id},'*')})}else markers[k].setLatLng([d.latitude,d.longitude])});Object.keys(markers).forEach(function(k){if(!seen[k]){map.removeLayer(markers[k]);delete markers[k]}});if(data.location){var ll=[data.location.latitude,data.location.longitude];if(!userMarker)userMarker=L.marker(ll,{icon:userIcon(),zIndexOffset:1000}).addTo(map);else userMarker.setLatLng(ll);if(!accuracyCircle)accuracyCircle=L.circle(ll,{radius:Math.max(data.location.accuracy||35,25),color:'#1E88E5',weight:1,fillColor:'#1E88E5',fillOpacity:.16}).addTo(map);else accuracyCircle.setLatLng(ll).setRadius(Math.max(data.location.accuracy||35,25));}}
-addEventListener('message',function(e){var m=e.data||{};if(m.type==='data')update(m);if(m.type==='center')map.flyTo([m.lat,m.lng],m.zoom||15,{duration:.6});if(m.type==='zoom')map.setZoom(map.getZoom()+(m.delta||0));});
-parent.postMessage({type:'map-ready'},'*');
-</script></body></html>`;
+<style>html,body,#map{margin:0;padding:0;height:100%;width:100%;background:#e8efe8}.marker{width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.3)}.user{width:18px;height:18px;border-radius:50%;background:#1E88E5;border:3px solid white;box-shadow:0 0 0 2px rgba(30,136,229,.35)}</style></head>
+<body><div id="map"></div><script>
+var map,markers={},userMarker=null,accuracyCircle=null;
+function initMap(){map=new google.maps.Map(document.getElementById('map'),{center:{lat:24.4539,lng:54.3773},zoom:7,mapTypeId:'roadmap',disableDefaultUI:false,streetViewControl:false,mapTypeControl:false,fullscreenControl:false,gestureHandling:'greedy'});parent.postMessage({type:'map-ready'},'*');}
+function markerContent(emoji,color){var el=document.createElement('div');el.className='marker';el.style.background=color;el.textContent=emoji;return el}
+function userContent(){var el=document.createElement('div');el.className='user';return el}
+function makeMarker(position,content){return new google.maps.marker.AdvancedMarkerElement({map:map,position:position,content:content})}
+function update(data){if(!map)return;data=data||{};var seen={};(data.requests||[]).forEach(function(r){var k='r_'+r.id,pos={lat:r.latitude,lng:r.longitude};seen[k]=1;if(!markers[k]){markers[k]=makeMarker(pos,markerContent('❤️','#F7564C'));markers[k].addListener('click',function(){parent.postMessage({type:'tap',itemType:'request',id:r.id},'*')})}else markers[k].position=pos});(data.donations||[]).forEach(function(d){var k='d_'+d.id,pos={lat:d.latitude,lng:d.longitude};seen[k]=1;if(!markers[k]){markers[k]=makeMarker(pos,markerContent('🍱','#2E9E5B'));markers[k].addListener('click',function(){parent.postMessage({type:'tap',itemType:'food',id:d.id},'*')})}else markers[k].position=pos});Object.keys(markers).forEach(function(k){if(!seen[k]){markers[k].map=null;delete markers[k]}});if(data.location){var pos={lat:data.location.latitude,lng:data.location.longitude};if(!userMarker)userMarker=makeMarker(pos,userContent());else userMarker.position=pos;if(!accuracyCircle)accuracyCircle=new google.maps.Circle({map:map,center:pos,radius:Math.max(data.location.accuracy||35,25),strokeColor:'#1E88E5',strokeOpacity:.45,strokeWeight:1,fillColor:'#1E88E5',fillOpacity:.16});else{accuracyCircle.setCenter(pos);accuracyCircle.setRadius(Math.max(data.location.accuracy||35,25));}}}
+addEventListener('message',function(e){var m=e.data||{};if(m.type==='data')update(m);if(m.type==='center'&&map)map.panTo({lat:m.lat,lng:m.lng}),map.setZoom(m.zoom||15);if(m.type==='zoom'&&map)map.setZoom(map.getZoom()+(m.delta||0));});
+</script><script async src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=marker&callback=initMap"></script></body></html>`;
 }
 
 function LoadingOverlay({ font, t }: { font: string; t: (key: string) => string }) {

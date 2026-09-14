@@ -4,6 +4,7 @@ import { supabase, Profile, UserSettings, AppLanguage, UserRole, UserMode, UserR
 import { t as translate, isRTL } from './i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerPushDevice } from './push';
+import { Platform } from 'react-native';
 
 interface AuthContextType {
   session: Session | null;
@@ -29,6 +30,14 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function getAuthRedirectUrl(path = ''): string {
+  if (Platform.OS !== 'web') return `sharek://${path.replace(/^\//, '')}`;
+  const configured = process.env.EXPO_PUBLIC_APP_URL?.replace(/\/$/, '');
+  if (configured) return `${configured}${path}`;
+  if (typeof window !== 'undefined' && window.location?.origin) return `${window.location.origin}${path}`;
+  return `sharek://${path.replace(/^\//, '')}`;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -145,7 +154,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [session]);
 
   const signUp = useCallback(async (email: string, password: string, fullName: string, religion: UserReligion | null) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: getAuthRedirectUrl('/') },
+    });
     if (error) {
       if (error.message.includes('already')) return { error: 'emailInUse' };
       return { error: 'authError' };
@@ -169,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   
   const signInWithOAuth = useCallback(async (provider: 'google' | 'facebook') => {
-    const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: 'sharek://' } });
+    const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: getAuthRedirectUrl('/') } });
     if (error) return { error: 'errorGeneric', url: null };
     return { error: null, url: data.url };
   }, []);
@@ -184,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = useCallback(async (email: string) => {
     if (!email.trim()) return { error: 'emailRequired' };
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: 'sharek://reset-password' });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: getAuthRedirectUrl('/reset-password') });
     return { error: error ? 'errorGeneric' : null };
   }, []);
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Circle, Marker } from 'react-native-maps';
+import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { LocateFixed } from 'lucide-react-native';
 import { colors, radius, spacing, typography } from '@/lib/theme';
 import { Coords } from '@/lib/location';
@@ -54,6 +54,7 @@ export function SharekMap({ location, locating, requests, donations, font, t, on
       <MapView
         ref={mapRef}
         style={styles.map}
+        provider={PROVIDER_GOOGLE}
         mapType="standard"
         showsUserLocation
         showsMyLocationButton={false}
