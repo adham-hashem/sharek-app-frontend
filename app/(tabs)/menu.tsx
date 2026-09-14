@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView, Image,
-  Alert, Modal, ActivityIndicator, TextInput,
+  Alert, Modal, ActivityIndicator, TextInput, Platform,
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -101,7 +101,19 @@ export default function MenuScreen() {
     Alert.alert(t('profileUpdated'));
   };
 
+  const performSignOut = async () => {
+    setBusy(true);
+    await signOut();
+    setBusy(false);
+    router.dismissAll();
+    router.replace('/(auth)/welcome');
+  };
+
   const confirmSignOut = () => {
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || window.confirm(t('signOut') + '?')) void performSignOut();
+      return;
+    }
     Alert.alert(
       t('signOut'),
       t('signOut') + '?',
@@ -110,11 +122,7 @@ export default function MenuScreen() {
         {
           text: t('signOut'),
           style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            router.dismissAll();
-            router.replace('/(auth)/welcome');
-          },
+          onPress: () => { void performSignOut(); },
         },
       ]
     );
@@ -168,7 +176,7 @@ export default function MenuScreen() {
   const currentMode = isOrgRole ? modeConfig.find(m => m.mode === profile?.mode) : null;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl + 88 }}>
       <View style={styles.headerBg}>
         <Image source={require('../../assets/images/image copy.png')} style={styles.headerLogo} resizeMode="contain" />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm }}>
@@ -355,8 +363,8 @@ export default function MenuScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut} activeOpacity={0.7}>
-        <LogOut size={20} color={colors.error} />
+      <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut} disabled={busy} activeOpacity={0.7}>
+        {busy ? <ActivityIndicator size={20} color={colors.error} /> : <LogOut size={20} color={colors.error} />}
         <Text style={[typography.bodyBold, { color: colors.error, fontFamily: `${font}Bold` }]}>
           {t('signOut')}
         </Text>
@@ -527,7 +535,7 @@ const styles = StyleSheet.create({
   menuIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    backgroundColor: colors.errorBg, borderRadius: radius.md, paddingVertical: spacing.md,
+    backgroundColor: colors.errorBg, borderRadius: radius.md, minHeight: 52, paddingVertical: spacing.md,
     marginHorizontal: spacing.lg, marginTop: spacing.lg,
   },
   modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },

@@ -1,9 +1,16 @@
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
 
-Notifications.setNotificationHandler({
+type NotificationsModule = typeof import('expo-notifications');
+
+const Notifications: NotificationsModule | null = Platform.OS === 'web'
+  ? null
+  : require('expo-notifications') as NotificationsModule;
+
+// Browser notifications use the Web Notifications API below. Keeping the
+// native module out of web startup also avoids its unsupported token listener.
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -81,6 +88,7 @@ export async function notifyIncomingRequest(title: string, body: string, soundTy
       }
       return;
     }
+    if (!Notifications) return;
     const current = await Notifications.getPermissionsAsync();
     const permission = current.granted ? current : await Notifications.requestPermissionsAsync();
     if (permission.granted) {

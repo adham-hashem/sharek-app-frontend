@@ -1,10 +1,19 @@
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { apiPost } from './api';
 
+type NotificationsModule = typeof import('expo-notifications');
+
+function getNativeNotifications(): NotificationsModule | null {
+  // expo-notifications does not support push-token listeners in web bundles.
+  // Loading it only on native prevents the browser-only warning and no-op code.
+  if (Platform.OS === 'web') return null;
+  return require('expo-notifications') as NotificationsModule;
+}
+
 export async function registerPushDevice(): Promise<void> {
-  if (Platform.OS === 'web') return;
+  const Notifications = getNativeNotifications();
+  if (!Notifications) return;
   const permission = await Notifications.getPermissionsAsync();
   let status = permission.status;
   if (status !== 'granted') {

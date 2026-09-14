@@ -73,6 +73,19 @@ export default function SettingsScreen() {
   };
 
   const confirmSignOut = () => {
+    const performSignOut = async () => {
+      setBusy(true);
+      await signOut();
+      setBusy(false);
+      router.dismissAll();
+      router.replace('/(auth)/welcome');
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || window.confirm(t('signOut') + '?')) void performSignOut();
+      return;
+    }
+
     Alert.alert(
       t('signOut'),
       t('signOut') + '?',
@@ -81,13 +94,7 @@ export default function SettingsScreen() {
         {
           text: t('signOut'),
           style: 'destructive',
-          onPress: async () => {
-            setBusy(true);
-            await signOut();
-            setBusy(false);
-            router.dismissAll();
-            router.replace('/(auth)/welcome');
-          },
+          onPress: () => { void performSignOut(); },
         },
       ],
     );
