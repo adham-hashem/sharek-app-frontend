@@ -216,6 +216,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!session?.user) return { error: 'authError' };
     const { error } = await supabase.rpc('update_own_profile_role', { p_role: role });
     if (error) return { error: 'errorGeneric' };
+    if (role === 'needer' || role === 'donor') {
+      const { error: modeError } = await supabase
+        .from('profiles')
+        .update({ mode: role })
+        .eq('id', session.user.id);
+      if (modeError) return { error: 'errorGeneric' };
+    }
     await loadProfile(session.user.id);
     return { error: null };
   }, [session, loadProfile]);

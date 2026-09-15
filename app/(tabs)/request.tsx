@@ -74,7 +74,7 @@ function mapItemToFoodDonation(item: NearbyMapItem): FoodDonation {
   return {
     id: item.item_id,
     user_id: item.user_id ?? '',
-    food_name: item.title || 'Available food',
+    food_name: item.title || '',
     description: '',
     image_url: null,
     meals: item.meals ?? 1,
@@ -100,7 +100,26 @@ function mapItemToFoodDonation(item: NearbyMapItem): FoodDonation {
 }
 
 export default function RequestScreen() {
-  return <NeedyFlow />;
+  const { loading, profile } = useAuth();
+  const accountMode = profile?.role === 'needer'
+    ? 'needer'
+    : profile?.role === 'donor'
+      ? 'donor'
+      : profile?.mode;
+
+  if (loading || !profile) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (accountMode === 'needer') {
+    return <NeedyFlow />;
+  }
+
+  return <DonorView />;
 }
 
 function DonorView() {
@@ -493,64 +512,68 @@ function NeedyFlow() {
               const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
               const prof = meal.donor_profile;
               const isOwnFood = meal.user_id === user?.id;
+              const displayName = meal.food_name || t('availableFoodFallback');
+              const displayDesc = meal.description || t('partnerMeal');
+              const distanceLabel = distText(meal.distance_km);
 
               return (
                 <View key={meal.id} style={styles.mealCard}>
-                  {meal.image_url ? (
-                    <Image source={{ uri: meal.image_url }} style={styles.mealPhoto} />
-                  ) : (
-                    <View style={[styles.mealPhoto, styles.mealPhotoFallback]}>
-                      <UtensilsCrossed size={32} color={colors.brownMuted} />
+                  <View style={styles.mealPhotoWrap}>
+                    {meal.image_url ? (
+                      <Image source={{ uri: meal.image_url }} style={styles.mealPhoto} />
+                    ) : (
+                      <View style={[styles.mealPhoto, styles.mealPhotoFallback]}>
+                        <UtensilsCrossed size={42} color={colors.brownMuted} />
+                        <Text style={[typography.small, { color: colors.brownMuted, marginTop: spacing.xs, fontFamily: `${font}SemiBold` }]}>
+                          {t('availableFoodFallback')}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={styles.photoTopBadges}>
+                      <View style={[styles.photoBadge, { backgroundColor: isUrgent ? colors.error : colors.warning }]}>
+                        <Clock size={13} color={colors.white} />
+                        <Text style={[typography.small, { color: colors.white, fontFamily: `${font}Bold` }]}>
+                          {t('remainingTime')}
+                        </Text>
+                        <LiveCountdown
+                          iso={meal.expires_at}
+                          lang={language}
+                          onExpire={() => handleExpire(meal.id)}
+                          style={[typography.small, { color: colors.white, fontFamily: `${font}Bold` }]}
+                        />
+                      </View>
+                      <View style={[styles.photoBadge, styles.distanceBadge]}>
+                        <MapPin size={13} color={colors.greenDark} />
+                        <Text style={[typography.small, { color: colors.greenDark, fontFamily: `${font}Bold` }]}>
+                          {distanceLabel}
+                        </Text>
+                      </View>
                     </View>
-                  )}
+                  </View>
 
                   <View style={styles.mealCardBody}>
                     <View style={styles.mealCardHeader}>
                       <View style={styles.mealNameSection}>
                         <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
-                          {meal.food_name}
+                          {displayName}
                         </Text>
                         <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={2}>
-                          {meal.description || t('partnerMeal')}
+                          {displayDesc}
                         </Text>
-                      </View>
-                      <View style={[styles.countdownBadge, { backgroundColor: isUrgent ? colors.error : colors.warning }]}>
-                        <Clock size={11} color={colors.white} />
-                        <LiveCountdown
-                          iso={meal.expires_at}
-                          lang={language}
-                          onExpire={() => handleExpire(meal.id)}
-                          style={[typography.micro, { color: colors.white, fontFamily: `${font}Bold` }]}
-                        />
                       </View>
                     </View>
 
-                    {/* Details row: food type, pickup time, distance */}
                     <View style={styles.mealDetailsRow}>
-                      {meal.food_type ? (
-                        <View style={styles.mealDetailTag}>
-                          <UtensilsCrossed size={10} color={colors.primary} />
-                          <Text style={[typography.micro, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>
-                            {meal.food_type}
-                          </Text>
-                        </View>
-                      ) : null}
                       <View style={styles.mealDetailTag}>
-                        <Navigation size={10} color={colors.greenDark} />
-                        <Text style={[typography.micro, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>
-                          {distText(meal.distance_km)}
+                        <UtensilsCrossed size={12} color={colors.primary} />
+                        <Text style={[typography.small, { color: colors.brown, fontFamily: `${font}SemiBold` }]}>
+                          {t('availableCount')}: {meal.meals} {t('meals')}
                         </Text>
                       </View>
                       <View style={styles.mealDetailTag}>
-                        <Clock size={10} color={colors.brownMuted} />
+                        <Clock size={12} color={colors.brownMuted} />
                         <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
-                          {formatPickupTime(meal.pickup_start)} - {formatPickupTime(meal.pickup_end)}
-                        </Text>
-                      </View>
-                      <View style={styles.mealDetailTag}>
-                        <UtensilsCrossed size={10} color={colors.brownMuted} />
-                        <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
-                          {meal.meals} {t('meals')}
+                          {t('pickupWindow')}: {formatPickupTime(meal.pickup_start)} - {formatPickupTime(meal.pickup_end)}
                         </Text>
                       </View>
                     </View>
@@ -598,7 +621,7 @@ function NeedyFlow() {
                           <>
                             <Heart size={16} color={colors.white} fill={colors.white} />
                             <Text style={[typography.small, { color: colors.white, fontFamily: `${font}Bold` }]}>
-                              {isOwnFood ? (language === 'ar' ? 'وجبتك' : 'Your meal') : t('orderMealBtn')}
+                              {isOwnFood ? t('myPublishedMeal') : t('orderMealBtn')}
                             </Text>
                           </>
                         )}
@@ -630,6 +653,7 @@ function NeedyFlow() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  centered: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
   scroll: { flex: 1 },
   headerCard: {
     alignItems: 'center', gap: spacing.sm,
@@ -659,11 +683,43 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border,
     shadowColor: colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3,
   },
+  mealPhotoWrap: {
+    position: 'relative',
+    backgroundColor: colors.surfaceAlt,
+  },
   mealPhoto: {
-    width: '100%', height: 160,
+    width: '100%', height: 220,
   },
   mealPhotoFallback: {
     justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceAlt,
+  },
+  photoTopBadges: {
+    position: 'absolute',
+    left: spacing.sm,
+    right: spacing.sm,
+    bottom: spacing.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  photoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+    shadowColor: colors.shadowStrong,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  distanceBadge: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.greenBg,
   },
   mealCardBody: {
     padding: spacing.md,
@@ -673,10 +729,6 @@ const styles = StyleSheet.create({
   },
   mealNameSection: {
     flex: 1, gap: 2,
-  },
-  countdownBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 5,
   },
   mealDetailsRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: spacing.sm,
