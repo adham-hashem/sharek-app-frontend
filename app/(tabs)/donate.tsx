@@ -25,6 +25,43 @@ type NearbyRequestMapItem = {
   created_at?: string; updated_at?: string; expires_at?: string;
 };
 
+function imageExtFromMime(mime: string) {
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
+  return 'jpg';
+}
+
+function imageMimeFromUri(uri: string) {
+  const cleanUri = uri.split('?')[0]?.toLowerCase() ?? '';
+  if (cleanUri.endsWith('.png')) return 'image/png';
+  if (cleanUri.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+async function buildFoodPhotoUpload(uri: string, userId: string) {
+  let body: Blob | { uri: string; type: string; name: string };
+  let mime = imageMimeFromUri(uri);
+
+  if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    mime = blob.type && ['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)
+      ? blob.type
+      : mime;
+    body = blob;
+  } else {
+    body = { uri, type: mime, name: 'food-photo' };
+  }
+
+  const ext = imageExtFromMime(mime);
+  const suffix = Math.random().toString(36).slice(2, 10);
+  return {
+    path: `${userId}/${Date.now()}-${suffix}.${ext}`,
+    body,
+    contentType: mime,
+  };
+}
+
 function mapItemToRequest(item: NearbyRequestMapItem): MealRequest {
   const createdAt = item.created_at ?? new Date().toISOString();
   return {
@@ -241,20 +278,27 @@ function FoodForm({ onBack }: { onBack: () => void }) {
 
     let imageUrl: string | null = null;
     if (photo) {
-      const ext = photo.split('.').pop()?.toLowerCase() || 'jpg';
-      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-      const path = `${user!.id}/${Date.now()}.${ext}`;
-      const file = { uri: photo, type: mime, name: path };
-      const { error: upErr } = await supabase.storage.from('food-photos').upload(path, file as any);
+      let upload: Awaited<ReturnType<typeof buildFoodPhotoUpload>>;
+      try {
+        upload = await buildFoodPhotoUpload(photo, user!.id);
+      } catch {
+        setSubmitting(false);
+        Alert.alert(t('publishFoodFailed'), t('errorGeneric'));
+        return;
+      }
+      const { error: upErr } = await supabase.storage.from('food-photos').upload(upload.path, upload.body as any, {
+        contentType: upload.contentType,
+        upsert: false,
+      });
       if (upErr) {
         setSubmitting(false);
-        Alert.alert(t('errorGeneric'));
+        Alert.alert(t('publishFoodFailed'), upErr.message || t('errorGeneric'));
         return;
       }
       if (!upErr) {
         // The bucket is private; keep the stored URL signed long enough for the
         // maximum food lifetime without falling back to an inaccessible public URL.
-        const { data: signed } = await supabase.storage.from('food-photos').createSignedUrl(path, 7 * 24 * 60 * 60);
+        const { data: signed } = await supabase.storage.from('food-photos').createSignedUrl(upload.path, 7 * 24 * 60 * 60);
         if (!signed?.signedUrl) {
           setSubmitting(false);
           Alert.alert(t('errorGeneric'));
