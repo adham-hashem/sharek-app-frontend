@@ -107,7 +107,7 @@ export default function RequestScreen() {
       ? 'donor'
       : profile?.mode;
 
-  if (loading || !profile) {
+  if (loading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.primary} size="large" />

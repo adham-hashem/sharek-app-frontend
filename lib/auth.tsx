@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(newSession);
         if (newSession) {
           await Promise.all([
-            /* replaced by dynamic load */
+            loadProfile(newSession.user.id),
             loadSettings(newSession.user.id),
           ]);
           registerPushDevice().catch((error) => console.warn('push registration unavailable', error));
