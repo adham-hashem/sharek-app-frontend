@@ -2,7 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import {
-  BadgeCheck, ChevronLeft, DollarSign, ShieldCheck, Star,
+  BadgeCheck, Building2, ChevronLeft, DollarSign, ShieldCheck, Star,
   TrendingUp, Users, Settings,
 } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
@@ -29,6 +29,18 @@ export default function AdminDashboardScreen() {
   const isAdmin = profile?.is_admin === true;
 
   const cards: AdminCard[] = [
+    {
+      titleAr: 'طلبات الأدوار',
+      titleEn: 'Role Requests',
+      descAr: 'مراجعة الحسابات التي طلبت دور جمعية أو مؤسسة أو مطعم أو فندق.',
+      descEn: 'Review accounts requesting charity, organization, restaurant, or hotel roles.',
+      bulletsAr: ['عرض اسم وإيميل صاحب الطلب', 'معرفة الدور والوضع المطلوب', 'قبول الطلب وتحديث profiles تلقائيًا', 'رفض الطلب مع ملاحظات اختيارية'],
+      bulletsEn: ['View requester name and email', 'See requested role and mode', 'Approve and update profiles automatically', 'Reject with optional admin notes'],
+      route: '/admin-role-requests',
+      icon: <Building2 size={24} color={colors.primary} />,
+      color: colors.primary,
+      bg: colors.surfaceAlt,
+    },
     {
       titleAr: 'إدارة أسعار الوجبات',
       titleEn: 'Meal Pricing',

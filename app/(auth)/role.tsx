@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
-import { UserRole } from '@/lib/supabase';
+import { supabase, UserMode, UserRole } from '@/lib/supabase';
 import { Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 
@@ -22,13 +22,31 @@ const roles: Array<{
 ];
 
 export default function RoleScreen() {
-  const { updateRole, t, profile } = useAuth();
+  const { updateRole, t, profile, language } = useAuth();
   const [selected, setSelected] = useState<UserRole | null>(null);
+  const [selectedMode, setSelectedMode] = useState<UserMode>('donor');
+  const [pendingSent, setPendingSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
+  const selectedNeedsApproval = selected ? orgRoles.includes(selected) : false;
 
   const confirm = async () => {
     if (!selected) return;
     setBusy(true);
+    if (orgRoles.includes(selected)) {
+      const { error } = await supabase.rpc('submit_role_approval_request', {
+        p_role: selected,
+        p_mode: selectedMode,
+      });
+      setBusy(false);
+      if (error) {
+        alert(t('errorGeneric'));
+        return;
+      }
+      setPendingSent(true);
+      return;
+    }
+
     const { error } = await updateRole(selected);
     setBusy(false);
     
@@ -37,13 +55,32 @@ export default function RoleScreen() {
       return;
     }
 
-    const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
-    if (orgRoles.includes(selected)) {
-      router.replace('/(auth)/mode' as never);
-    } else {
-      router.replace('/(auth)/country' as never);
-    }
+    router.replace('/(auth)/country' as never);
   };
+
+  if (pendingSent) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader title="" style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm }} />
+        <View style={styles.pendingWrap}>
+          <View style={styles.pendingIcon}>
+            <Building2 size={34} color={colors.primary} />
+          </View>
+          <Text style={styles.title}>
+            {language === 'ar' ? 'تم إرسال طلب الدور' : 'Role request sent'}
+          </Text>
+          <Text style={styles.sub}>
+            {language === 'ar'
+              ? 'طلبك الآن في انتظار موافقة الأدمن. سيظهر للأدمن داخل لوحة الإدارة في قسم طلبات الأدوار.'
+              : 'Your request is waiting for admin approval. Admins can review it from the Role Requests section.'}
+          </Text>
+          <TouchableOpacity style={styles.confirmBtn} onPress={() => router.replace('/(auth)/login')} activeOpacity={0.8}>
+            <Text style={styles.confirmText}>{language === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to login'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
@@ -69,9 +106,42 @@ export default function RoleScreen() {
         ))}
       </View>
 
+      {selectedNeedsApproval && (
+        <View style={styles.approvalBox}>
+          <Text style={styles.approvalTitle}>
+            {language === 'ar' ? 'هذا الدور يحتاج موافقة الأدمن' : 'This role requires admin approval'}
+          </Text>
+          <Text style={styles.approvalDesc}>
+            {language === 'ar'
+              ? 'اختر هل سيعمل هذا الحساب كمحتاج أو كشريك/متبرع بعد الموافقة.'
+              : 'Choose whether this account will operate as in-need or partner/donor after approval.'}
+          </Text>
+          <View style={styles.modeRow}>
+            {(['needer', 'donor'] as UserMode[]).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={[styles.modeChip, selectedMode === mode && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                onPress={() => setSelectedMode(mode)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.modeChipText, selectedMode === mode && { color: colors.white }]}>
+                  {t(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {selected && (
         <TouchableOpacity style={styles.confirmBtn} onPress={confirm} disabled={busy} activeOpacity={0.8}>
-          <Text style={styles.confirmText}>{t('confirm')}</Text>
+          {busy ? <ActivityIndicator color={colors.white} /> : (
+            <Text style={styles.confirmText}>
+              {selectedNeedsApproval
+                ? (language === 'ar' ? 'إرسال طلب الموافقة' : 'Send approval request')
+                : t('confirm')}
+            </Text>
+          )}
         </TouchableOpacity>
       )}
     </ScrollView>
@@ -90,6 +160,8 @@ const styles = StyleSheet.create({
   logo: { width: 52, height: 52 },
   title: { ...typography.title, color: colors.brown, textAlign: 'center' },
   sub: { ...typography.caption, color: colors.brownMuted, textAlign: 'center', marginBottom: spacing.xl, marginTop: spacing.xs },
+  pendingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
+  pendingIcon: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   roleCard: {
     width: '47%',
@@ -105,6 +177,18 @@ const styles = StyleSheet.create({
   roleIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm },
   roleName: { ...typography.bodyBold, color: colors.brown, textAlign: 'center' },
   roleDesc: { ...typography.small, color: colors.brownMuted, textAlign: 'center', marginTop: 2 },
+  approvalBox: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
+    borderWidth: 1.5, borderColor: colors.primary, marginTop: spacing.lg,
+  },
+  approvalTitle: { ...typography.bodyBold, color: colors.brown, textAlign: 'center' },
+  approvalDesc: { ...typography.small, color: colors.brownMuted, textAlign: 'center', marginTop: spacing.xs },
+  modeRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  modeChip: {
+    flex: 1, alignItems: 'center', borderRadius: radius.pill, paddingVertical: spacing.sm,
+    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surfaceAlt,
+  },
+  modeChipText: { ...typography.small, color: colors.brown },
   confirmBtn: {
     backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.md,
     alignItems: 'center', marginTop: spacing.sm,

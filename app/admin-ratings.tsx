@@ -19,9 +19,10 @@ interface RatingWithProfiles extends FoodRating {
 }
 
 export default function AdminRatingsScreen() {
-  const { t, language } = useAuth();
+  const { t, language, profile } = useAuth();
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   const rtl = language === 'ar';
+  const isAdmin = profile?.is_admin === true;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,6 +32,11 @@ export default function AdminRatingsScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    if (!isAdmin) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     const [{ data: statsData }, { data: ratingsData }] = await Promise.all([
       supabase.rpc('get_admin_ratings_stats'),
       supabase
@@ -49,7 +55,7 @@ export default function AdminRatingsScreen() {
     if (ratingsData) setRatings(ratingsData as RatingWithProfiles[]);
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     loadData();
@@ -129,6 +135,28 @@ export default function AdminRatingsScreen() {
         </View>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
+            <ChevronLeft size={26} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
+          </TouchableOpacity>
+          <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+            {t('adminRatings')}
+          </Text>
+          <View style={{ width: 26 }} />
+        </View>
+        <View style={styles.loadingWrap}>
+          <ShieldCheck size={48} color={colors.brownMuted} />
+          <Text style={[typography.body, { color: colors.brownMuted, marginTop: spacing.md, fontFamily: `${font}Regular` }]}>
+            {language === 'ar' ? 'هذه الصفحة مخصصة للأدمن فقط.' : 'This page is only available to admins.'}
+          </Text>
         </View>
       </SafeAreaView>
     );
