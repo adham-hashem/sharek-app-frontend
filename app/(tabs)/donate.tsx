@@ -186,7 +186,7 @@ function BackBar({ onPress }: { onPress: () => void }) {
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   return (
     <TouchableOpacity style={styles.backBar} onPress={onPress} activeOpacity={0.8}>
-      <ChevronLeft size={22} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
+      <Text style={styles.backArrow}>{rtl ? '›' : '‹'}</Text>
       <Text style={[typography.small, { color: colors.brown, fontFamily: `${font}Bold` }]}>
         {t('back')}
       </Text>
@@ -1535,6 +1535,13 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: colors.primary,
     shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+  },
+  backArrow: {
+    color: colors.brown,
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: '800',
+    marginTop: -2,
   },
   choiceCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,

@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ViewStyle } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, typography } from '@/lib/theme';
@@ -38,11 +37,7 @@ export function ScreenHeader({ title, onBack, rightElement, showBack = true, sty
           accessibilityRole="button"
           accessibilityLabel={language === 'ar' ? 'رجوع' : 'Back'}
         >
-          <ChevronLeft
-            size={24}
-            color={colors.brown}
-            style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }}
-          />
+          <Text style={styles.backArrow}>{rtl ? '›' : '‹'}</Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.backPlaceholder} />
@@ -85,6 +80,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  backArrow: {
+    color: colors.brown,
+    fontSize: 38,
+    lineHeight: 40,
+    fontWeight: '800',
+    marginTop: -3,
   },
   backPlaceholder: {
     width: 40,

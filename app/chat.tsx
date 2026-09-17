@@ -663,7 +663,7 @@ export default function ChatScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
-          <ChevronLeft size={26} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
+          <Text style={styles.backArrow}>{rtl ? '›' : '‹'}</Text>
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <View style={styles.headerAvatar}>
@@ -1086,6 +1086,13 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: colors.primary,
     shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+  },
+  backArrow: {
+    color: colors.brown,
+    fontSize: 38,
+    lineHeight: 40,
+    fontWeight: '800',
+    marginTop: -3,
   },
   headerInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headerAvatar: {
