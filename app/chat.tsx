@@ -21,6 +21,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { AchievementBadgeMini } from '@/components/AchievementBadge';
 import { RatingModal } from '@/components/RatingModal';
 import { createNotification } from '@/lib/notifications';
+import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const MAP_HEIGHT = SCREEN_WIDTH >= 768 ? 280 : 220;
@@ -697,8 +698,8 @@ export default function ChatScreen() {
 
       {donation && (
         <View style={styles.foodBanner}>
-          {donation.image_url ? (
-            <Image source={{ uri: donation.image_url }} style={styles.foodBannerImg} />
+          {getPrimaryFoodImage(donation) ? (
+            <Image source={{ uri: getPrimaryFoodImage(donation)! }} style={styles.foodBannerImg} />
           ) : (
             <View style={[styles.foodBannerImg, { backgroundColor: colors.greenBg, justifyContent: 'center', alignItems: 'center' }]}>
               <UtensilsCrossed size={20} color={colors.green} />

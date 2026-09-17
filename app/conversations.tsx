@@ -12,6 +12,7 @@ import {
   ChevronLeft, MessageCircle, UtensilsCrossed, Send,
 } from 'lucide-react-native';
 import { AchievementBadgeMini } from '@/components/AchievementBadge';
+import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 interface ConversationRow {
   donation: FoodDonation;
@@ -194,8 +195,8 @@ export default function ConversationsScreen() {
                   </View>
                 )}
                 <View style={styles.convoFoodRow}>
-                  {row.donation.image_url ? (
-                    <Image source={{ uri: row.donation.image_url }} style={styles.convoFoodImg} />
+                  {getPrimaryFoodImage(row.donation) ? (
+                    <Image source={{ uri: getPrimaryFoodImage(row.donation)! }} style={styles.convoFoodImg} />
                   ) : (
                     <View style={[styles.convoFoodImg, { backgroundColor: colors.greenBg, justifyContent: 'center', alignItems: 'center' }]}>
                       <UtensilsCrossed size={12} color={colors.green} />

@@ -17,6 +17,7 @@ import { apiFetch, apiPost, apiPatch } from '@/lib/api';
 import { router } from 'expo-router';
 import { ensureLocationPermission, getCurrentLocation, watchLocation, Coords, haversineKm } from '@/lib/location';
 import { LiveMatchMap } from '@/components/LiveMatchMap';
+import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 type MainTab = 'choose' | 'food' | 'money' | 'requests' | 'claimed';
 type NearbyRequestMapItem = {
@@ -195,7 +196,7 @@ function BackBar({ onPress }: { onPress: () => void }) {
 
 function FoodForm({ onBack }: { onBack: () => void }) {
   const { t, language, user } = useAuth();
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [foodName, setFoodName] = useState('');
   const [description, setDescription] = useState('');
   const [allergens, setAllergens] = useState('');
@@ -232,7 +233,7 @@ function FoodForm({ onBack }: { onBack: () => void }) {
       quality: 0.7,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhoto(result.assets[0].uri);
+      setPhotos(prev => [...prev, result.assets[0].uri].slice(0, 8));
     }
   };
 
@@ -241,12 +242,14 @@ function FoodForm({ onBack }: { onBack: () => void }) {
     if (!perm.granted) return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 8,
       aspect: [4, 3],
       quality: 0.7,
     });
-    if (!result.canceled && result.assets[0]) {
-      setPhoto(result.assets[0].uri);
+    if (!result.canceled && result.assets.length > 0) {
+      setPhotos(prev => [...prev, ...result.assets.map(asset => asset.uri)].slice(0, 8));
     }
   };
 
@@ -276,8 +279,8 @@ function FoodForm({ onBack }: { onBack: () => void }) {
 
     setSubmitting(true);
 
-    let imageUrl: string | null = null;
-    if (photo) {
+    const imageUrls: string[] = [];
+    for (const photo of photos) {
       let upload: Awaited<ReturnType<typeof buildFoodPhotoUpload>>;
       try {
         upload = await buildFoodPhotoUpload(photo, user!.id);
@@ -295,24 +298,21 @@ function FoodForm({ onBack }: { onBack: () => void }) {
         Alert.alert(t('publishFoodFailed'), upErr.message || t('errorGeneric'));
         return;
       }
-      if (!upErr) {
-        // The bucket is private; keep the stored URL signed long enough for the
-        // maximum food lifetime without falling back to an inaccessible public URL.
-        const { data: signed } = await supabase.storage.from('food-photos').createSignedUrl(upload.path, 7 * 24 * 60 * 60);
-        if (!signed?.signedUrl) {
-          setSubmitting(false);
-          Alert.alert(t('errorGeneric'));
-          return;
-        }
-        imageUrl = signed.signedUrl;
+      const { data: signed } = await supabase.storage.from('food-photos').createSignedUrl(upload.path, 7 * 24 * 60 * 60);
+      if (!signed?.signedUrl) {
+        setSubmitting(false);
+        Alert.alert(t('errorGeneric'));
+        return;
       }
+      imageUrls.push(signed.signedUrl);
     }
 
     const now = new Date();
     const payload = {
         food_name: foodName.trim(),
         description: description.trim(),
-        image_url: imageUrl,
+        image_url: imageUrls[0] ?? null,
+        image_urls: imageUrls,
         meals,
         pickup_start: now.toISOString(),
         pickup_end: expiresAt.toISOString(),
@@ -346,7 +346,7 @@ function FoodForm({ onBack }: { onBack: () => void }) {
     setFoodName('');
     setDescription('');
     setAllergens('');
-    setPhoto(null);
+    setPhotos([]);
     setMeals(1);
     setExpiryHours(3);
     setExpiryMinutes(0);
@@ -383,12 +383,46 @@ function FoodForm({ onBack }: { onBack: () => void }) {
         {t('uploadPhoto')}
       </Text>
 
-      {photo ? (
+      {photos.length > 0 ? (
         <View style={styles.photoWrap}>
-          <Image source={{ uri: photo }} style={styles.photo} />
-          <TouchableOpacity style={styles.removePhoto} onPress={() => setPhoto(null)}>
+          <Image source={{ uri: photos[0] }} style={styles.photo} />
+          <View style={styles.photoCountBadge}>
+            <Text style={[typography.micro, { color: colors.white, fontFamily: `${font}Bold` }]}>
+              {photos.length}/8
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.removePhoto} onPress={() => setPhotos(prev => prev.slice(1))}>
             <X size={18} color={colors.white} />
           </TouchableOpacity>
+          {photos.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.photoThumbRow}
+            >
+              {photos.map((uri, index) => (
+                <View key={`${uri}-${index}`} style={styles.photoThumb}>
+                  <Image source={{ uri }} style={styles.photoThumbImg} />
+                  <TouchableOpacity
+                    style={styles.removeThumb}
+                    onPress={() => setPhotos(prev => prev.filter((_, i) => i !== index))}
+                  >
+                    <X size={12} color={colors.white} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+          <View style={styles.photoPickerCompact}>
+            <TouchableOpacity style={styles.photoBtnCompact} onPress={pickPhoto}>
+              <Camera size={18} color={colors.primary} />
+              <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>{t('camera')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.photoBtnCompact} onPress={pickFromGallery}>
+              <UtensilsCrossed size={18} color={colors.primary} />
+              <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}SemiBold` }]}>{t('gallery')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : (
         <View style={styles.photoPicker}>
@@ -1421,8 +1455,8 @@ function ClaimedList({ onBack }: { onBack: () => void }) {
       {claims.map(({ claim, donation }) => (
         <View key={claim.id} style={styles.requestCard}>
           <View style={styles.requestHeader}>
-            {donation.image_url ? (
-              <Image source={{ uri: donation.image_url }} style={styles.claimFoodImg} />
+            {getPrimaryFoodImage(donation) ? (
+              <Image source={{ uri: getPrimaryFoodImage(donation)! }} style={styles.claimFoodImg} />
             ) : (
               <View style={[styles.claimFoodImg, { backgroundColor: colors.greenBg, justifyContent: 'center', alignItems: 'center' }]}>
                 <UtensilsCrossed size={18} color={colors.green} />
@@ -1504,7 +1538,18 @@ const styles = StyleSheet.create({
   photoWrap: { position: 'relative', marginBottom: spacing.md },
   photo: { width: '100%', height: 180, borderRadius: radius.md },
   removePhoto: { position: 'absolute', top: spacing.sm, right: spacing.sm, width: 32, height: 32, borderRadius: 16, backgroundColor: colors.overlay, justifyContent: 'center', alignItems: 'center' },
+  photoCountBadge: { position: 'absolute', top: spacing.sm, left: spacing.sm, minWidth: 42, height: 28, borderRadius: 14, backgroundColor: colors.overlay, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.sm },
+  photoThumbRow: { gap: spacing.sm, paddingTop: spacing.sm },
+  photoThumb: { width: 58, height: 58, borderRadius: radius.sm, overflow: 'hidden', position: 'relative', backgroundColor: colors.surfaceAlt },
+  photoThumbImg: { width: '100%', height: '100%' },
+  removeThumb: { position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.overlay, justifyContent: 'center', alignItems: 'center' },
   photoPicker: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.md },
+  photoPickerCompact: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  photoBtnCompact: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingVertical: spacing.sm,
+    borderWidth: 1.5, borderColor: colors.border, borderStyle: 'dashed',
+  },
   photoBtn: {
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingVertical: spacing.lg,

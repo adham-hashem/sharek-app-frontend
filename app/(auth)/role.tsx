@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
 import { UserRole } from '@/lib/supabase';
-import { Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel, SkipForward } from 'lucide-react-native';
+import { Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 
 const roles: Array<{
@@ -27,9 +27,9 @@ export default function RoleScreen() {
   const [busy, setBusy] = useState(false);
 
   const confirm = async () => {
+    if (!selected) return;
     setBusy(true);
-    const role = selected ?? 'donor'; // skip defaults to donor now
-    const { error } = await updateRole(role);
+    const { error } = await updateRole(selected);
     setBusy(false);
     
     if (error) {
@@ -38,7 +38,7 @@ export default function RoleScreen() {
     }
 
     const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
-    if (orgRoles.includes(role)) {
+    if (orgRoles.includes(selected)) {
       router.replace('/(auth)/mode' as never);
     } else {
       router.replace('/(auth)/country' as never);
@@ -68,11 +68,6 @@ export default function RoleScreen() {
           </TouchableOpacity>
         ))}
       </View>
-
-      <TouchableOpacity style={styles.skipBtn} onPress={confirm} disabled={busy} activeOpacity={0.8}>
-        <SkipForward size={20} color={colors.brownMuted} />
-        <Text style={styles.skipText}>{t('roleSkip')}</Text>
-      </TouchableOpacity>
 
       {selected && (
         <TouchableOpacity style={styles.confirmBtn} onPress={confirm} disabled={busy} activeOpacity={0.8}>
@@ -110,11 +105,6 @@ const styles = StyleSheet.create({
   roleIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm },
   roleName: { ...typography.bodyBold, color: colors.brown, textAlign: 'center' },
   roleDesc: { ...typography.small, color: colors.brownMuted, textAlign: 'center', marginTop: 2 },
-  skipBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    paddingVertical: spacing.md, marginTop: spacing.lg,
-  },
-  skipText: { ...typography.bodyBold, color: colors.brownMuted },
   confirmBtn: {
     backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.md,
     alignItems: 'center', marginTop: spacing.sm,

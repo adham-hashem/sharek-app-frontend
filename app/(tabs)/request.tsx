@@ -17,6 +17,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { router } from 'expo-router';
 import { apiFetch, apiPost } from '@/lib/api';
 import { createNotification } from '@/lib/notifications';
+import { getFoodImages, getPrimaryFoodImage } from '@/lib/foodImages';
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
 type NearbyMapItem = {
@@ -403,10 +404,11 @@ function NeedyFlow() {
 
           {activeClaims.map((donation) => {
             const isReady = donation.status === 'ready_for_pickup';
+            const primaryImage = getPrimaryFoodImage(donation);
             return (
               <View key={donation.id} style={styles.activeClaimCard}>
-                {donation.image_url && (
-                  <Image source={{ uri: donation.image_url }} style={styles.activeClaimImg} />
+                {primaryImage && (
+                  <Image source={{ uri: primaryImage }} style={styles.activeClaimImg} />
                 )}
                 <View style={styles.activeClaimBody}>
                   <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
@@ -515,17 +517,26 @@ function NeedyFlow() {
               const displayName = meal.food_name || t('availableFoodFallback');
               const displayDesc = meal.description || t('partnerMeal');
               const distanceLabel = distText(meal.distance_km);
+              const foodImages = getFoodImages(meal);
+              const primaryImage = foodImages[0];
 
               return (
                 <View key={meal.id} style={styles.mealCard}>
                   <View style={styles.mealPhotoWrap}>
-                    {meal.image_url ? (
-                      <Image source={{ uri: meal.image_url }} style={styles.mealPhoto} />
+                    {primaryImage ? (
+                      <Image source={{ uri: primaryImage }} style={styles.mealPhoto} />
                     ) : (
                       <View style={[styles.mealPhoto, styles.mealPhotoFallback]}>
                         <UtensilsCrossed size={42} color={colors.brownMuted} />
                         <Text style={[typography.small, { color: colors.brownMuted, marginTop: spacing.xs, fontFamily: `${font}SemiBold` }]}>
                           {t('availableFoodFallback')}
+                        </Text>
+                      </View>
+                    )}
+                    {foodImages.length > 1 && (
+                      <View style={styles.mealImageCountBadge}>
+                        <Text style={[typography.micro, { color: colors.white, fontFamily: `${font}Bold` }]}>
+                          +{foodImages.length - 1}
                         </Text>
                       </View>
                     )}
@@ -689,6 +700,12 @@ const styles = StyleSheet.create({
   },
   mealPhoto: {
     width: '100%', height: 220,
+  },
+  mealImageCountBadge: {
+    position: 'absolute', top: spacing.sm, left: spacing.sm,
+    minWidth: 34, height: 26, borderRadius: 13,
+    backgroundColor: colors.overlay, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: spacing.xs,
   },
   mealPhotoFallback: {
     justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceAlt,

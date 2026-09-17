@@ -18,6 +18,7 @@ import { ensureLocationPermission, getCurrentLocation, watchLocation, haversineK
 import { SuggestedMeals } from '@/components/SuggestedMeals';
 import { getUnreadCount, createNotification } from '@/lib/notifications';
 import { SharekMap } from '@/components/SharekMap';
+import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 type FilterType = 'all' | 'requests' | 'food';
 type SelectedItem =
@@ -576,6 +577,7 @@ export default function MapScreen() {
               const req = item.data as MealRequest;
               const don = item.data as FoodDonation;
               const isSelected = selected?.id === (isRequest ? req.id : don.id);
+              const primaryImage = !isRequest ? getPrimaryFoodImage(don) : null;
               return (
                 <TouchableOpacity
                   key={item.key}
@@ -583,9 +585,13 @@ export default function MapScreen() {
                   onPress={() => showBottomCard({ type: item.type, id: isRequest ? req.id : don.id } as SelectedItem)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.listIcon, { backgroundColor: isRequest ? colors.errorBg : colors.greenBg }]}>
-                    {isRequest ? <Heart size={20} color={colors.coral} /> : <UtensilsCrossed size={20} color={colors.green} />}
-                  </View>
+                  {primaryImage ? (
+                    <Image source={{ uri: primaryImage }} style={styles.listFoodImg} />
+                  ) : (
+                    <View style={[styles.listIcon, { backgroundColor: isRequest ? colors.errorBg : colors.greenBg }]}>
+                      {isRequest ? <Heart size={20} color={colors.coral} /> : <UtensilsCrossed size={20} color={colors.green} />}
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
                       {isRequest ? `${req.meals} ${t('meals')}` : don.food_name}
@@ -719,9 +725,13 @@ export default function MapScreen() {
           ) : selectedDonation && (
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 220 }}>
               <View style={styles.detailHeader}>
-                <View style={[styles.detailIcon, { backgroundColor: colors.greenBg }]}>
-                  <UtensilsCrossed size={24} color={colors.green} />
-                </View>
+                {getPrimaryFoodImage(selectedDonation) ? (
+                  <Image source={{ uri: getPrimaryFoodImage(selectedDonation)! }} style={styles.detailFoodImg} />
+                ) : (
+                  <View style={[styles.detailIcon, { backgroundColor: colors.greenBg }]}>
+                    <UtensilsCrossed size={24} color={colors.green} />
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
                     {selectedDonation.food_name}
@@ -894,6 +904,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border,
   },
   listIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  listFoodImg: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.surfaceAlt },
   distBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
     backgroundColor: colors.greenBg, borderRadius: radius.pill,
@@ -909,6 +920,7 @@ const styles = StyleSheet.create({
   closeBtn: { position: 'absolute', top: spacing.sm, right: spacing.md, padding: spacing.xs },
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.sm },
   detailIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  detailFoodImg: { width: 58, height: 58, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
   detailRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.sm },
   detailCell: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   actionBtn: {

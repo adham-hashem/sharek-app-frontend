@@ -36,8 +36,14 @@ export function SharekMap({ location, locating, requests, donations, font, t, on
     return () => window.removeEventListener('message', onMessage);
   }, [location, onReady, onSelect]);
 
+  const centeredRef = useRef(false);
+
   useEffect(() => {
     post({ type: 'data', location, requests, donations });
+    if (location && !centeredRef.current) {
+      post({ type: 'center', lat: location.latitude, lng: location.longitude, zoom: 15 });
+      centeredRef.current = true;
+    }
   }, [location, requests, donations]);
 
   return (
@@ -72,10 +78,10 @@ function makeOpenStreetMapHtml() {
 <body><div id="map"></div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
 var map=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:.5}).setView([24.4539,54.3773],6);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}).addTo(map);
-var markers={},userMarker=null,accuracyCircle=null;
+var markers={},userMarker=null,accuracyCircle=null,centered=false;
 function icon(emoji,color){return L.divIcon({className:'sharek-marker',html:'<div style="width:40px;height:40px;border-radius:20px;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.3)">'+emoji+'</div>',iconSize:[40,40],iconAnchor:[20,20]})}
 function userIcon(){return L.divIcon({className:'sharek-marker',html:'<div style="width:18px;height:18px;border-radius:50%;background:#1E88E5;border:3px solid white;box-shadow:0 0 0 2px rgba(30,136,229,.35)"></div>',iconSize:[18,18],iconAnchor:[9,9]})}
-function update(data){data=data||{};var seen={};(data.requests||[]).forEach(function(r){var k='r_'+r.id;seen[k]=1;if(!markers[k]){markers[k]=L.marker([r.latitude,r.longitude],{icon:icon('❤️','#F7564C')}).addTo(map).on('click',function(){parent.postMessage({type:'tap',itemType:'request',id:r.id},'*')})}else markers[k].setLatLng([r.latitude,r.longitude])});(data.donations||[]).forEach(function(d){var k='d_'+d.id;seen[k]=1;if(!markers[k]){markers[k]=L.marker([d.latitude,d.longitude],{icon:icon('🍱','#2E9E5B')}).addTo(map).on('click',function(){parent.postMessage({type:'tap',itemType:'food',id:d.id},'*')})}else markers[k].setLatLng([d.latitude,d.longitude])});Object.keys(markers).forEach(function(k){if(!seen[k]){map.removeLayer(markers[k]);delete markers[k]}});if(data.location){var ll=[data.location.latitude,data.location.longitude];if(!userMarker)userMarker=L.marker(ll,{icon:userIcon(),zIndexOffset:1000}).addTo(map);else userMarker.setLatLng(ll);if(!accuracyCircle)accuracyCircle=L.circle(ll,{radius:Math.max(data.location.accuracy||35,25),color:'#1E88E5',weight:1,fillColor:'#1E88E5',fillOpacity:.16}).addTo(map);else accuracyCircle.setLatLng(ll).setRadius(Math.max(data.location.accuracy||35,25));}}
+function update(data){data=data||{};var seen={};(data.requests||[]).forEach(function(r){var k='r_'+r.id;seen[k]=1;if(!markers[k]){markers[k]=L.marker([r.latitude,r.longitude],{icon:icon('❤️','#F7564C')}).addTo(map).on('click',function(){parent.postMessage({type:'tap',itemType:'request',id:r.id},'*')})}else markers[k].setLatLng([r.latitude,r.longitude])});(data.donations||[]).forEach(function(d){var k='d_'+d.id;seen[k]=1;if(!markers[k]){markers[k]=L.marker([d.latitude,d.longitude],{icon:icon('🍱','#2E9E5B')}).addTo(map).on('click',function(){parent.postMessage({type:'tap',itemType:'food',id:d.id},'*')})}else markers[k].setLatLng([d.latitude,d.longitude])});Object.keys(markers).forEach(function(k){if(!seen[k]){map.removeLayer(markers[k]);delete markers[k]}});if(data.location){var ll=[data.location.latitude,data.location.longitude];if(!userMarker)userMarker=L.marker(ll,{icon:userIcon(),zIndexOffset:1000}).addTo(map);else userMarker.setLatLng(ll);if(!accuracyCircle)accuracyCircle=L.circle(ll,{radius:Math.max(data.location.accuracy||35,25),color:'#1E88E5',weight:1,fillColor:'#1E88E5',fillOpacity:.16}).addTo(map);else accuracyCircle.setLatLng(ll).setRadius(Math.max(data.location.accuracy||35,25));if(!centered){map.flyTo(ll,15,{duration:.6});centered=true;}}}
 addEventListener('message',function(e){var m=e.data||{};if(m.type==='data')update(m);if(m.type==='center')map.flyTo([m.lat,m.lng],m.zoom||15,{duration:.6});if(m.type==='zoom')map.setZoom(map.getZoom()+(m.delta||0));});
 parent.postMessage({type:'map-ready'},'*');
 </script></body></html>`;

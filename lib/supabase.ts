@@ -128,6 +128,7 @@ export interface FoodDonation {
   food_name: string;
   description: string;
   image_url: string | null;
+  image_urls?: string[] | null;
   meals: number;
   pickup_start: string;
   pickup_end: string;
