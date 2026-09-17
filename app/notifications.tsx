@@ -243,7 +243,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     backgroundColor: colors.surface, borderBottomWidth: 1.5, borderColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: {
+    width: 46, height: 46, borderRadius: 23,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 2, borderColor: colors.primary,
+    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+  },
   headerTitleWrap: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flex: 1, justifyContent: 'center',
   },

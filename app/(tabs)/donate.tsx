@@ -1527,7 +1527,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   headerCard: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
   headerIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
-  backBar: { paddingVertical: spacing.sm, marginBottom: spacing.sm, alignSelf: 'flex-start' },
+  backBar: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    minHeight: 46, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    marginBottom: spacing.sm, alignSelf: 'flex-start',
+    backgroundColor: colors.surface, borderRadius: radius.pill,
+    borderWidth: 2, borderColor: colors.primary,
+    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+  },
   choiceCard: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,

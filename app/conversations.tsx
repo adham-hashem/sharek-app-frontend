@@ -146,7 +146,7 @@ export default function ConversationsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}>
           <ChevronLeft size={26} color={colors.brown} style={{ transform: [{ scaleX: rtl ? -1 : 1 }] }} />
@@ -237,7 +237,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     backgroundColor: colors.surface, borderBottomWidth: 1.5, borderColor: colors.border,
   },
-  backBtn: { padding: spacing.xs },
+  backBtn: {
+    width: 46, height: 46, borderRadius: 23,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 2, borderColor: colors.primary,
+    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1, shadowRadius: 8, elevation: 4,
+  },
   loadingWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
   convoCard: {
