@@ -183,7 +183,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const signInWithOAuth = useCallback(async (provider: 'google' | 'facebook') => {
     const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: getAuthRedirectUrl('/') } });
-    if (error) return { error: 'errorGeneric', url: null };
+    if (error) {
+      if (error.message.toLowerCase().includes('unsupported provider')) {
+        return { error: 'oauthProviderDisabled', url: null };
+      }
+      return { error: 'errorGeneric', url: null };
+    }
     return { error: null, url: data.url };
   }, []);
 
