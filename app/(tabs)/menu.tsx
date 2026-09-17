@@ -342,24 +342,14 @@ export default function MenuScreen() {
           showChevron
         />
         {profile?.is_admin && (
-          <>
-            <MenuItem
-              icon={<ShieldCheck size={20} color={colors.brown} />}
-              label={t('adminVerification')}
-              onPress={() => router.push('/admin-verification' as never)}
-              color={colors.brown}
-              bg={colors.surfaceMuted}
-              showChevron
-            />
-            <MenuItem
-              icon={<Star size={20} color={colors.goldenDark} />}
-              label={t('adminRatings')}
-              onPress={() => router.push('/admin-ratings' as never)}
-              color={colors.goldenDark}
-              bg={colors.warningBg}
-              showChevron
-            />
-          </>
+          <MenuItem
+            icon={<ShieldCheck size={20} color={colors.primary} />}
+            label={language === 'ar' ? 'لوحة الإدارة' : 'Admin Dashboard'}
+            onPress={() => router.push('/admin-dashboard' as never)}
+            color={colors.primary}
+            bg={colors.surfaceAlt}
+            showChevron
+          />
         )}
       </View>
 

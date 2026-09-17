@@ -48,6 +48,7 @@ function RootNav() {
       <Stack.Screen name="settings" />
       <Stack.Screen name="donate-money" />
       <Stack.Screen name="donate-sharek" />
+      <Stack.Screen name="admin-dashboard" />
       <Stack.Screen name="admin" />
       <Stack.Screen name="history" />
       <Stack.Screen name="notifications" />
