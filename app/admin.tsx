@@ -11,14 +11,15 @@ type MealType = { id: string; name: string; description: string; price_usd: numb
 type PriceChange = { id: string; meal_type_id: string; old_price_usd: number; new_price_usd: number; changed_at: string };
 
 export default function AdminScreen() {
-  const { language, user, t } = useAuth();
+  const { language, profile, t } = useAuth();
   const [items, setItems] = useState<MealType[]>([]);
   const [priceHistory, setPriceHistory] = useState<PriceChange[]>([]);
   const [busy, setBusy] = useState(true);
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
+  const isAdmin = profile?.is_admin === true;
 
   const load = useCallback(async () => {
-    if (!user?.app_metadata?.is_admin && user?.app_metadata?.role !== 'admin') { setBusy(false); return; }
+    if (!isAdmin) { setBusy(false); return; }
     try {
       const result = await apiFetch<{ items: MealType[] }>('/v1/admin/meal-types');
       setItems(result.items);
@@ -26,7 +27,7 @@ export default function AdminScreen() {
       setPriceHistory(history.items);
     } catch { Alert.alert(language === 'ar' ? 'تعذر تحميل الأسعار' : 'Could not load prices'); }
     finally { setBusy(false); }
-  }, [user, language]);
+  }, [isAdmin, language]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -38,7 +39,7 @@ export default function AdminScreen() {
   };
 
   if (busy) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
-  if (!user?.app_metadata?.is_admin && user?.app_metadata?.role !== 'admin') return (
+  if (!isAdmin) return (
     <View style={styles.forbidden}>
       <ScreenHeader title={t('adminPricing')} />
       <View style={styles.forbiddenBody}>
