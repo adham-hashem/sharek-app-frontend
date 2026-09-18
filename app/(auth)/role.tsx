@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, BackHandler } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
-import { supabase, UserMode, UserRole } from '@/lib/supabase';
+import { UserMode, UserRole } from '@/lib/supabase';
 import { Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel } from 'lucide-react-native';
-import { ScreenHeader } from '@/components/ScreenHeader';
 
 const roles: Array<{
   role: UserRole;
@@ -22,69 +21,43 @@ const roles: Array<{
 ];
 
 export default function RoleScreen() {
-  const { updateRole, t, profile, language } = useAuth();
+  const { updateRole, updateMode, t, language } = useAuth();
   const [selected, setSelected] = useState<UserRole | null>(null);
   const [selectedMode, setSelectedMode] = useState<UserMode>('donor');
-  const [pendingSent, setPendingSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const orgRoles: UserRole[] = ['charity', 'organization', 'restaurant', 'hotel'];
   const selectedNeedsApproval = selected ? orgRoles.includes(selected) : false;
 
+  useEffect(() => {
+    const blockBack = () => true;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', blockBack);
+    return () => subscription.remove();
+  }, []);
+
   const confirm = async () => {
     if (!selected) return;
     setBusy(true);
-    if (orgRoles.includes(selected)) {
-      const { error } = await supabase.rpc('submit_role_approval_request', {
-        p_role: selected,
-        p_mode: selectedMode,
-      });
-      setBusy(false);
-      if (error) {
+    const { error } = await updateRole(selected);
+    if (!error && selectedNeedsApproval) {
+      const modeResult = await updateMode(selectedMode);
+      if (modeResult.error) {
+        setBusy(false);
         alert(t('errorGeneric'));
         return;
       }
-      setPendingSent(true);
-      return;
     }
-
-    const { error } = await updateRole(selected);
     setBusy(false);
     
     if (error) {
-      alert(t('roleRequiresApproval') || 'This role requires administrator approval. Please contact support or choose a different role.');
+      alert(t('errorGeneric'));
       return;
     }
 
     router.replace('/(auth)/country' as never);
   };
 
-  if (pendingSent) {
-    return (
-      <View style={styles.container}>
-        <ScreenHeader title="" style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm }} />
-        <View style={styles.pendingWrap}>
-          <View style={styles.pendingIcon}>
-            <Building2 size={34} color={colors.primary} />
-          </View>
-          <Text style={styles.title}>
-            {language === 'ar' ? 'تم إرسال طلب الدور' : 'Role request sent'}
-          </Text>
-          <Text style={styles.sub}>
-            {language === 'ar'
-              ? 'طلبك الآن في انتظار موافقة الأدمن. سيظهر للأدمن داخل لوحة الإدارة في قسم طلبات الأدوار.'
-              : 'Your request is waiting for admin approval. Admins can review it from the Role Requests section.'}
-          </Text>
-          <TouchableOpacity style={styles.confirmBtn} onPress={() => router.replace('/(auth)/login')} activeOpacity={0.8}>
-            <Text style={styles.confirmText}>{language === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to login'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
-      <ScreenHeader title="" style={{ paddingHorizontal: 0, paddingTop: spacing.md, paddingBottom: spacing.sm }} />
       <View style={styles.logoFrame}>
         <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
       </View>
@@ -109,12 +82,12 @@ export default function RoleScreen() {
       {selectedNeedsApproval && (
         <View style={styles.approvalBox}>
           <Text style={styles.approvalTitle}>
-            {language === 'ar' ? 'هذا الدور يحتاج موافقة الأدمن' : 'This role requires admin approval'}
+            {language === 'ar' ? 'اختر طريقة استخدامك للتطبيق' : 'Choose how you will use SHARek'}
           </Text>
           <Text style={styles.approvalDesc}>
             {language === 'ar'
-              ? 'اختر هل سيعمل هذا الحساب كمحتاج أو كشريك/متبرع بعد الموافقة.'
-              : 'Choose whether this account will operate as in-need or partner/donor after approval.'}
+              ? 'يمكنك البدء فورًا كمحتاج أو كشريك/متبرع، ولا تحتاج إلى انتظار موافقة.'
+              : 'You can start immediately as a needer or partner/donor. No approval is required.'}
           </Text>
           <View style={styles.modeRow}>
             {(['needer', 'donor'] as UserMode[]).map((mode) => (
@@ -137,9 +110,7 @@ export default function RoleScreen() {
         <TouchableOpacity style={styles.confirmBtn} onPress={confirm} disabled={busy} activeOpacity={0.8}>
           {busy ? <ActivityIndicator color={colors.white} /> : (
             <Text style={styles.confirmText}>
-              {selectedNeedsApproval
-                ? (language === 'ar' ? 'إرسال طلب الموافقة' : 'Send approval request')
-                : t('confirm')}
+              {language === 'ar' ? 'متابعة إلى التطبيق' : 'Continue to SHARek'}
             </Text>
           )}
         </TouchableOpacity>
