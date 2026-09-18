@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, Modal } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
 import { Mail, Lock, User, Moon, Church, Globe, Check, Scroll, Phone } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { UserReligion } from '@/lib/supabase';
+import { COUNTRIES } from '@/lib/countries';
 
 const religionOptions: Array<{
   value: UserReligion;
@@ -20,27 +21,60 @@ const religionOptions: Array<{
   { value: 'other', icon: <Globe size={22} color={colors.brownLight} />, labelKey: 'religionOther', color: colors.brownLight, bg: colors.surfaceMuted },
 ];
 
+const DIAL_CODES: Record<string, { dial: string; placeholder: string }> = {
+  AE: { dial: '+971', placeholder: '50 123 4567' },
+  SA: { dial: '+966', placeholder: '50 123 4567' },
+  EG: { dial: '+20', placeholder: '10 1234 5678' },
+  KW: { dial: '+965', placeholder: '500 12345' },
+  QA: { dial: '+974', placeholder: '3312 3456' },
+  BH: { dial: '+973', placeholder: '3600 1234' },
+  OM: { dial: '+968', placeholder: '9123 4567' },
+  JO: { dial: '+962', placeholder: '7 9012 3456' },
+  IQ: { dial: '+964', placeholder: '770 123 4567' },
+  LB: { dial: '+961', placeholder: '70 123 456' },
+  SY: { dial: '+963', placeholder: '944 123 456' },
+  YE: { dial: '+967', placeholder: '777 123 456' },
+  PS: { dial: '+970', placeholder: '59 123 4567' },
+  SD: { dial: '+249', placeholder: '91 123 4567' },
+  LY: { dial: '+218', placeholder: '91 123 4567' },
+  TN: { dial: '+216', placeholder: '20 123 456' },
+  DZ: { dial: '+213', placeholder: '551 23 45 67' },
+  MA: { dial: '+212', placeholder: '612 345 678' },
+  MR: { dial: '+222', placeholder: '22 12 34 56' },
+  SO: { dial: '+252', placeholder: '61 1234567' },
+  DJ: { dial: '+253', placeholder: '77 12 34 56' },
+  KM: { dial: '+269', placeholder: '321 23 45' },
+};
+
+const phoneCountries = COUNTRIES
+  .filter((country) => DIAL_CODES[country.code])
+  .map((country) => ({ ...country, ...DIAL_CODES[country.code] }));
+
 export default function RegisterScreen() {
   const { signUp, t, language } = useAuth();
   const [fullName, setFullName] = useState('');
+  const [selectedCountry, setSelectedCountry] = useState(phoneCountries.find((country) => country.code === 'AE') ?? phoneCountries[0]);
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [religion, setReligion] = useState<UserReligion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [countryModal, setCountryModal] = useState(false);
 
     const submit = async () => {
     setError(null);
     if (!fullName.trim()) return setError(t('fullNameRequired'));
     if (!phone.trim()) return setError(t('phoneRequired'));
-    if (!/^\+?[0-9]{8,15}$/.test(phone.replace(/\s/g, ''))) return setError(t('invalidPhone'));
+    const localPhone = phone.replace(/[^\d]/g, '').replace(/^0+/, '');
+    const fullPhone = `${selectedCountry.dial}${localPhone}`;
+    if (!/^\+[0-9]{8,15}$/.test(fullPhone)) return setError(t('invalidPhone'));
     if (email.trim() && !/^\S+@\S+\.\S+$/.test(email)) return setError(t('invalidEmail'));
     if (password.length < 6) return setError(t('passwordRequired'));
     if (!religion) return setError(t('religionRequired'));
 
     setBusy(true);
-    const res = await signUp(phone.trim(), email.trim(), password, fullName.trim(), religion);
+    const res = await signUp(fullPhone, email.trim(), password, fullName.trim(), religion);
     setBusy(false);
     if (res.error) {
       setError(t(res.error));
@@ -84,9 +118,14 @@ export default function RegisterScreen() {
 
           <View style={styles.inputWrap}>
             <Phone color={colors.brownMuted} size={20} />
+            <TouchableOpacity style={styles.countryCodeBtn} onPress={() => setCountryModal(true)} activeOpacity={0.8}>
+              <Text style={styles.countryCodeText}>
+                {selectedCountry.flag} {selectedCountry.dial}
+              </Text>
+            </TouchableOpacity>
             <TextInput
               style={styles.input}
-              placeholder={language === 'ar' ? 'رقم الهاتف مع كود الدولة' : 'Phone number with country code'}
+              placeholder={selectedCountry.placeholder}
               value={phone}
               onChangeText={setPhone}
               placeholderTextColor={colors.brownMuted}
@@ -95,6 +134,11 @@ export default function RegisterScreen() {
               autoCorrect={false}
             />
           </View>
+          <Text style={styles.helperText}>
+            {language === 'ar'
+              ? `اختر كود الدولة ثم اكتب باقي الرقم فقط. مثال: ${selectedCountry.dial} ${selectedCountry.placeholder}`
+              : `Choose the country code, then enter the rest of the number. Example: ${selectedCountry.dial} ${selectedCountry.placeholder}`}
+          </Text>
 
           <View style={styles.inputWrap}>
             <Mail color={colors.brownMuted} size={20} />
@@ -175,6 +219,37 @@ export default function RegisterScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Modal visible={countryModal} transparent animationType="slide" onRequestClose={() => setCountryModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.countryModal}>
+            <Text style={styles.modalTitle}>
+              {language === 'ar' ? 'اختر كود الدولة' : 'Choose country code'}
+            </Text>
+            <ScrollView style={{ maxHeight: 420 }}>
+              {phoneCountries.map((country) => (
+                <TouchableOpacity
+                  key={country.code}
+                  style={styles.countryRow}
+                  onPress={() => {
+                    setSelectedCountry(country);
+                    setCountryModal(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.countryName}>
+                    {country.flag} {language === 'ar' ? country.nameAr : country.nameEn}
+                  </Text>
+                  <Text style={styles.countryDial}>{country.dial}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setCountryModal(false)}>
+              <Text style={styles.modalCloseText}>{t('back')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -194,6 +269,15 @@ const styles = StyleSheet.create({
   },
   input: { ...typography.body, flex: 1, color: colors.brown, padding: 0 },
   helperText: { ...typography.small, color: colors.brownMuted, marginTop: -spacing.sm, lineHeight: 20 },
+  countryCodeBtn: {
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  countryCodeText: { ...typography.small, color: colors.brown },
 
   religionSection: {
     marginTop: spacing.xs,
@@ -243,4 +327,37 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: spacing.md },
   switchText: { ...typography.body, color: colors.brownMuted },
   switchLink: { ...typography.bodyBold, color: colors.primary },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  countryModal: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  modalTitle: { ...typography.heading, color: colors.brown, textAlign: 'center', marginBottom: spacing.md },
+  countryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.sm,
+  },
+  countryName: { ...typography.body, color: colors.brown, flex: 1 },
+  countryDial: { ...typography.bodyBold, color: colors.primary },
+  modalCloseBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  modalCloseText: { ...typography.bodyBold, color: colors.white },
 });

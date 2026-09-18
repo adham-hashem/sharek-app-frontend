@@ -176,7 +176,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error) {
-      if (error.message.toLowerCase().includes('already')) return { error: 'accountAlreadyExists' };
+      const message = error.message.toLowerCase();
+      if (message.includes('already') || message.includes('registered')) return { error: 'accountAlreadyExists' };
+      if (message.includes('phone') || message.includes('sms') || message.includes('provider') || message.includes('unsupported')) {
+        return { error: 'phoneAuthSetupRequired' };
+      }
       return { error: 'authError' };
     }
     if (data.user && data.session) {
