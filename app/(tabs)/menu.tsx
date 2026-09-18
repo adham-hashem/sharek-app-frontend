@@ -326,6 +326,14 @@ export default function MenuScreen() {
           showChevron
         />
         <MenuItem
+          icon={<Shield size={20} color={colors.coral} />}
+          label={language === 'ar' ? 'الإبلاغ عن مشكلة' : 'Report a problem'}
+          onPress={() => router.push('/report-problem' as never)}
+          color={colors.coral}
+          bg={colors.errorBg}
+          showChevron
+        />
+        <MenuItem
           icon={<Heart size={20} color={colors.goldenDark} />}
           label={t('supportSharekHeart')}
           onPress={() => router.push('/support' as never)}

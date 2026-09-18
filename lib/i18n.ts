@@ -51,6 +51,7 @@ const ar: Dict = {
   roleNeeder: 'محتاج',
   roleDonor: 'متبرع',
   roleCharity: 'جمعية خيرية',
+  roleOrganization: 'مؤسسة',
   roleRestaurant: 'مطعم',
   roleHotel: 'فندق',
   roleSkip: 'تخطي',
@@ -59,6 +60,7 @@ const ar: Dict = {
   roleCharityDesc: 'جمعية خيرية',
   roleRestaurantDesc: 'مطعم يتبرع بالطعام',
   roleHotelDesc: 'فندق يتبرع بالطعام',
+  quranMushaf: 'المصحف الشريف',
   confirm: 'تأكيد',
 
   home: 'الرئيسية',
@@ -477,6 +479,7 @@ const en: Dict = {
   roleNeeder: 'In Need',
   roleDonor: 'Helper',
   roleCharity: 'Charity',
+  roleOrganization: 'Organization',
   roleRestaurant: 'Restaurant',
   roleHotel: 'Hotel',
   roleSkip: 'Skip',
@@ -485,6 +488,7 @@ const en: Dict = {
   roleCharityDesc: 'Charity organization',
   roleRestaurantDesc: 'Restaurant donating food',
   roleHotelDesc: 'Hotel donating food',
+  quranMushaf: 'Quran Mushaf',
   confirm: 'Confirm',
 
   home: 'Home',

@@ -147,6 +147,16 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.section}>
+        <TouchableOpacity style={styles.privacyRow} onPress={() => router.push('/change-password' as never)} activeOpacity={0.7}>
+          <Shield size={20} color={colors.primary} />
+          <Text style={[typography.body, { color: colors.brown, flex: 1, fontFamily: `${font}Regular` }]}>
+            {language === 'ar' ? 'تغيير كلمة المرور' : 'Change password'}
+          </Text>
+          <ChevronLeft size={20} color={colors.brownMuted} style={{ transform: rtl ? [{ scaleX: -1 }] : [] }} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
         <Text style={[typography.bodyBold, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
           {t('notifications')}
         </Text>

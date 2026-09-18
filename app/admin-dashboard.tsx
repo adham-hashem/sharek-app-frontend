@@ -30,6 +30,16 @@ export default function AdminDashboardScreen() {
 
   const cards: AdminCard[] = [
     {
+      titleAr: 'المستخدمون والحظر', titleEn: 'Users & moderation',
+      descAr: 'عرض المستخدمين وإيقاف الحسابات المسيئة عند الحاجة.', descEn: 'View users and suspend abusive accounts when necessary.',
+      bulletsAr: ['عرض الحسابات والأدوار', 'حظر أو فك حظر الحساب', 'حفظ سبب الإجراء'], bulletsEn: ['View accounts and roles', 'Suspend or restore accounts', 'Record an action reason'], route: '/admin-users', icon: <Users size={24} color={colors.coral} />, color: colors.coral, bg: colors.errorBg,
+    },
+    {
+      titleAr: 'بلاغات المستخدمين', titleEn: 'User reports',
+      descAr: 'مراجعة البلاغات واتخاذ إجراء إداري.', descEn: 'Review reports and take moderation action.',
+      bulletsAr: ['عرض تفاصيل البلاغ', 'تغيير حالة البلاغ', 'كتابة ملاحظات الإدارة'], bulletsEn: ['View report details', 'Update report status', 'Add admin notes'], route: '/admin-reports', icon: <ShieldCheck size={24} color={colors.primary} />, color: colors.primary, bg: colors.surfaceAlt,
+    },
+    {
       titleAr: 'طلبات الأدوار',
       titleEn: 'Role Requests',
       descAr: 'مراجعة الحسابات التي طلبت دور جمعية أو مؤسسة أو مطعم أو فندق.',

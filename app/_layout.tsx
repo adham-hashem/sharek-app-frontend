@@ -41,6 +41,7 @@ function RootNav() {
       <Stack.Screen name="(auth)/register" />
       <Stack.Screen name="(auth)/login" />
       <Stack.Screen name="reset-password" />
+      <Stack.Screen name="change-password" />
       <Stack.Screen name="(auth)/role" />
       <Stack.Screen name="(auth)/mode" />
       <Stack.Screen name="(auth)/country" />
@@ -58,6 +59,9 @@ function RootNav() {
       <Stack.Screen name="verify-account" />
       <Stack.Screen name="admin-verification" />
       <Stack.Screen name="admin-ratings" />
+      <Stack.Screen name="admin-users" />
+      <Stack.Screen name="admin-reports" />
+      <Stack.Screen name="report-problem" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="+not-found" />
     </Stack>

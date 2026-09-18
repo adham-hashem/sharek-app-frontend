@@ -1,0 +1,16 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import { ScreenHeader } from '@/components/ScreenHeader';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
+import { colors, radius, spacing, typography } from '@/lib/theme';
+type Row = { id: string; full_name: string; email: string; role: string; is_suspended: boolean; suspended_reason: string };
+export default function AdminUsers() { const { profile, language } = useAuth(); const [rows, setRows] = useState<Row[]>([]); const [busy, setBusy] = useState(true); const ar = language === 'ar';
+  const load = useCallback(async () => { setBusy(true); const { data } = await supabase.from('profiles').select('id,full_name,email,role,is_suspended,suspended_reason').order('created_at', { ascending: false }); setRows((data ?? []) as Row[]); setBusy(false); }, []);
+  useEffect(() => { if (profile?.is_admin) void load(); else setBusy(false); }, [profile?.is_admin, load]);
+  const toggle = async (item: Row) => { const { error } = await supabase.rpc('admin_set_user_suspension', { p_user_id: item.id, p_suspended: !item.is_suspended, p_reason: ar ? 'مخالفة إرشادات الاستخدام' : 'Usage policy violation' }); if (error) Alert.alert(ar ? 'تعذر تنفيذ الإجراء' : 'Action failed'); else void load(); };
+  if (!profile?.is_admin) return <View style={styles.center}><Text>{ar ? 'غير مصرح' : 'Access denied'}</Text></View>;
+  return <View style={styles.container}><ScreenHeader title={ar ? 'المستخدمون والحظر' : 'Users & moderation'} onBack={() => router.replace('/admin-dashboard' as never)} />{busy ? <ActivityIndicator style={styles.center} color={colors.primary} /> : <FlatList data={rows} keyExtractor={x => x.id} contentContainerStyle={styles.list} renderItem={({ item }) => <View style={styles.card}><Text style={styles.name}>{item.full_name || (ar ? 'بدون اسم' : 'Unnamed')}</Text><Text style={styles.meta}>{item.email} · {item.role}</Text><TouchableOpacity style={[styles.action, item.is_suspended && styles.restore]} onPress={() => toggle(item)}><Text style={styles.actionText}>{item.is_suspended ? (ar ? 'فك الحظر' : 'Restore') : (ar ? 'حظر المستخدم' : 'Suspend user')}</Text></TouchableOpacity></View>} ListEmptyComponent={<Text style={styles.empty}>{ar ? 'لا يوجد مستخدمون.' : 'No users found.'}</Text>} />}</View>;
+}
+const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: colors.background }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, list: { padding: spacing.lg, gap: spacing.md }, card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border }, name: { ...typography.bodyBold, color: colors.brown }, meta: { ...typography.small, color: colors.brownMuted, marginTop: 4 }, action: { marginTop: spacing.md, padding: spacing.sm, borderRadius: radius.md, backgroundColor: colors.errorBg, alignItems: 'center' }, restore: { backgroundColor: colors.greenBg }, actionText: { ...typography.bodyBold, color: colors.brown }, empty: { ...typography.body, color: colors.brownMuted, textAlign: 'center' } });
