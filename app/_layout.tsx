@@ -23,15 +23,16 @@ function RootNav() {
   const segments = useSegments();
   const router = useRouter();
   const isAuthRoute = segments[0] === '(auth)';
+  const isPasswordRecoveryRoute = pathname === '/forgot-password' || pathname === '/reset-password';
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash.includes('access_token') && window.location.hash.includes('type=recovery')) {
       router.replace('/reset-password');
       return;
     }
-    if (loading || session || pathname === '/' || isAuthRoute) return;
+    if (loading || session || pathname === '/' || isAuthRoute || isPasswordRecoveryRoute) return;
     router.replace('/(auth)/welcome');
-  }, [isAuthRoute, loading, pathname, router, session]);
+  }, [isAuthRoute, isPasswordRecoveryRoute, loading, pathname, router, session]);
 
   if (loading) {
     return <View style={{ flex: 1, backgroundColor: colors.background }} />;
