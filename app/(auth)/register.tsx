@@ -55,6 +55,7 @@ export default function RegisterScreen() {
   const [fullName, setFullName] = useState('');
   const [selectedCountry, setSelectedCountry] = useState(phoneCountries.find((country) => country.code === 'AE') ?? phoneCountries[0]);
   const [phone, setPhone] = useState('');
+  const [phoneConfirm, setPhoneConfirm] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [religion, setReligion] = useState<UserReligion | null>(null);
@@ -67,9 +68,13 @@ export default function RegisterScreen() {
     if (!fullName.trim()) return setError(t('fullNameRequired'));
     if (!phone.trim()) return setError(t('phoneRequired'));
     const localPhone = phone.replace(/[^\d]/g, '').replace(/^0+/, '');
+    const localPhoneConfirm = phoneConfirm.replace(/[^\d]/g, '').replace(/^0+/, '');
     const fullPhone = `${selectedCountry.dial}${localPhone}`;
+    const fullPhoneConfirm = `${selectedCountry.dial}${localPhoneConfirm}`;
     if (!/^\+[0-9]{8,15}$/.test(fullPhone)) return setError(t('invalidPhone'));
-    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email)) return setError(t('invalidEmail'));
+    if (fullPhone !== fullPhoneConfirm) return setError(language === 'ar' ? 'رقما الهاتف غير متطابقين' : 'Phone numbers do not match');
+    if (!email.trim()) return setError(t('emailRequired'));
+    if (!/^\S+@\S+\.\S+$/.test(email)) return setError(t('invalidEmail'));
     if (password.length < 6) return setError(t('passwordRequired'));
     if (!religion) return setError(t('religionRequired'));
 
@@ -83,8 +88,8 @@ export default function RegisterScreen() {
     
     if (!res.session) {
       setError(language === 'ar'
-        ? 'تم إنشاء الحساب. يرجى تأكيد رقم الهاتف باستخدام رسالة التحقق قبل تسجيل الدخول.'
-        : 'Account created. Please confirm your phone number with the verification message before signing in.');
+        ? 'تم إنشاء الحساب. يرجى تأكيد البريد الإلكتروني قبل تسجيل الدخول.'
+        : 'Account created. Please confirm your email before signing in.');
       setTimeout(() => {
         router.replace('/(auth)/login');
       }, 3000);
@@ -136,15 +141,29 @@ export default function RegisterScreen() {
           </View>
           <Text style={styles.helperText}>
             {language === 'ar'
-              ? `اختر كود الدولة ثم اكتب باقي الرقم فقط. مثال: ${selectedCountry.dial} ${selectedCountry.placeholder}`
+              ? `لن نرسل كود تحقق للهاتف. اكتبه مرتين للتأكد. مثال: ${selectedCountry.dial} ${selectedCountry.placeholder}`
               : `Choose the country code, then enter the rest of the number. Example: ${selectedCountry.dial} ${selectedCountry.placeholder}`}
           </Text>
+
+          <View style={styles.inputWrap}>
+            <Phone color={colors.brownMuted} size={20} />
+            <TextInput
+              style={styles.input}
+              placeholder={language === 'ar' ? 'أعد كتابة رقم الهاتف' : 'Re-enter phone number'}
+              value={phoneConfirm}
+              onChangeText={setPhoneConfirm}
+              placeholderTextColor={colors.brownMuted}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
 
           <View style={styles.inputWrap}>
             <Mail color={colors.brownMuted} size={20} />
             <TextInput
               style={styles.input}
-              placeholder={language === 'ar' ? 'البريد الإلكتروني اختياري لاستعادة كلمة المرور' : 'Email optional for password recovery'}
+              placeholder={language === 'ar' ? 'البريد الإلكتروني للتأكيد واستعادة كلمة المرور' : 'Email for verification and password recovery'}
               value={email}
               onChangeText={setEmail}
               placeholderTextColor={colors.brownMuted}
@@ -155,8 +174,8 @@ export default function RegisterScreen() {
           </View>
           <Text style={styles.helperText}>
             {language === 'ar'
-              ? 'سنستخدم البريد الإلكتروني فقط لاستعادة كلمة المرور وإرسال رابط آمن عند الحاجة.'
-              : 'Email is used only for password recovery and secure reset links when needed.'}
+              ? 'سيتم إرسال رسالة تأكيد إلى البريد الإلكتروني، وهو المستخدم أيضًا لاستعادة كلمة المرور.'
+              : 'A confirmation email will be sent. Email is also used for password recovery.'}
           </Text>
 
           <View style={styles.inputWrap}>

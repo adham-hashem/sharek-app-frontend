@@ -31,7 +31,7 @@ export type MatchStatus = 'accepted' | 'completed' | 'cancelled';
 export interface Profile {
   id: string;
   full_name: string;
-  email: string | null;
+  email: string;
   role: UserRole;
   mode: UserMode | null;
   language: AppLanguage;

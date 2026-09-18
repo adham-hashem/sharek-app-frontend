@@ -162,9 +162,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedPhone = normalizePhone(phone);
     const normalizedEmail = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.signUp({
-      phone: normalizedPhone,
+      email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo: getAuthRedirectUrl('/'),
         data: {
           full_name: fullName,
           email: normalizedEmail,
@@ -178,9 +179,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       const message = error.message.toLowerCase();
       if (message.includes('already') || message.includes('registered')) return { error: 'accountAlreadyExists' };
-      if (message.includes('phone') || message.includes('sms') || message.includes('provider') || message.includes('unsupported')) {
-        return { error: 'phoneAuthSetupRequired' };
-      }
       return { error: 'authError' };
     }
     if (data.user && data.session) {
