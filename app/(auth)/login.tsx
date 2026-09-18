@@ -7,29 +7,11 @@ import { Lock, User } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 
 export default function LoginScreen() {
-  const { signIn, resetPassword, t, language } = useAuth();
+  const { signIn, t, language } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const forgotPassword = async () => {
-    setError(null);
-    if (!identifier.trim()) { setError(t('loginIdentifierRequired')); return; }
-    setBusy(true);
-    const { error: resetError, recoveryEmail, phone } = await resetPassword(identifier);
-    setBusy(false);
-    if (resetError) setError(t(resetError));
-    else if (recoveryEmail) {
-      setError(language === 'ar'
-        ? `تم إرسال رابط استعادة آمن إلى ${recoveryEmail}${phone ? ` المرتبط بالهاتف ${phone}` : ''}`
-        : `A secure recovery link was sent to ${recoveryEmail}${phone ? ` linked to phone ${phone}` : ''}`);
-    } else {
-      setError(language === 'ar'
-        ? 'إذا كان الحساب موجودًا وبه بريد استرداد، سيتم إرسال رابط آمن لتغيير كلمة المرور.'
-        : 'If the account exists and has a recovery email, a secure password reset link will be sent.');
-    }
-  };
 
   const submit = async () => {
     setError(null);
@@ -94,7 +76,7 @@ export default function LoginScreen() {
           <TouchableOpacity style={styles.button} onPress={submit} disabled={busy} activeOpacity={0.8}>
             {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>{t('signIn')}</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={forgotPassword} disabled={busy} accessibilityRole="button">
+          <TouchableOpacity onPress={() => router.push('/forgot-password' as never)} disabled={busy} accessibilityRole="button">
             <Text style={styles.forgotText}>{t('forgotPassword')}</Text>
           </TouchableOpacity>
 

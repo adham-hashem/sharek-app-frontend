@@ -25,6 +25,10 @@ function RootNav() {
   const isAuthRoute = segments[0] === '(auth)';
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash.includes('access_token') && window.location.hash.includes('type=recovery')) {
+      router.replace('/reset-password');
+      return;
+    }
     if (loading || session || pathname === '/' || isAuthRoute) return;
     router.replace('/(auth)/welcome');
   }, [isAuthRoute, loading, pathname, router, session]);
@@ -41,6 +45,7 @@ function RootNav() {
       <Stack.Screen name="(auth)/register" />
       <Stack.Screen name="(auth)/login" />
       <Stack.Screen name="reset-password" />
+      <Stack.Screen name="forgot-password" />
       <Stack.Screen name="change-password" />
       <Stack.Screen name="(auth)/role" />
       <Stack.Screen name="(auth)/mode" />
