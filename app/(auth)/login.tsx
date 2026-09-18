@@ -1,51 +1,50 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Pressable, Image } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
-import { Mail, Lock } from 'lucide-react-native';
+import { Lock, User } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import * as WebBrowser from 'expo-web-browser';
 
 export default function LoginScreen() {
-  const { signIn, signInWithOAuth, resetPassword, t } = useAuth();
-  const [email, setEmail] = useState('');
+  const { signIn, resetPassword, t, language } = useAuth();
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const forgotPassword = async () => {
     setError(null);
-    if (!email.trim()) { setError(t('emailRequired')); return; }
+    if (!identifier.trim()) { setError(t('loginIdentifierRequired')); return; }
     setBusy(true);
-    const { error: resetError } = await resetPassword(email);
+    const { error: resetError, recoveryEmail, phone } = await resetPassword(identifier);
     setBusy(false);
-    setError(resetError ? t(resetError) : t('resetEmailSent'));
+    if (resetError) setError(t(resetError));
+    else if (recoveryEmail) {
+      setError(language === 'ar'
+        ? `تم إرسال رابط استعادة آمن إلى ${recoveryEmail}${phone ? ` المرتبط بالهاتف ${phone}` : ''}`
+        : `A secure recovery link was sent to ${recoveryEmail}${phone ? ` linked to phone ${phone}` : ''}`);
+    } else {
+      setError(language === 'ar'
+        ? 'إذا كان الحساب موجودًا وبه بريد استرداد، سيتم إرسال رابط آمن لتغيير كلمة المرور.'
+        : 'If the account exists and has a recovery email, a secure password reset link will be sent.');
+    }
   };
 
   const submit = async () => {
     setError(null);
-    if (!email.trim() || password.length < 1) {
+    if (!identifier.trim() || password.length < 1) {
       setError(t('fillAllFields'));
       return;
     }
     setBusy(true);
-    const { error: err } = await signIn(email.trim(), password);
+    const { error: err } = await signIn(identifier.trim(), password);
     setBusy(false);
     if (err) {
       setError(t(err));
       return;
     }
     router.replace('/');
-  };
-
-  const socialLogin = async (provider: 'google' | 'facebook') => {
-    setError(null);
-    setBusy(true);
-    const { error: err, url } = await signInWithOAuth(provider);
-    setBusy(false);
-    if (err) setError(t(err));
-    else if (url) await WebBrowser.openBrowserAsync(url);
   };
 
   return (
@@ -61,12 +60,12 @@ export default function LoginScreen() {
 
         <View style={styles.form}>
           <View style={styles.inputWrap}>
-            <Mail color={colors.brownMuted} size={20} />
+            <User color={colors.brownMuted} size={20} />
             <TextInput
               style={styles.input}
-              placeholder={t('email')}
-              value={email}
-              onChangeText={setEmail}
+              placeholder={language === 'ar' ? 'رقم الهاتف أو البريد الإلكتروني' : 'Phone number or email'}
+              value={identifier}
+              onChangeText={setIdentifier}
               placeholderTextColor={colors.brownMuted}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -98,23 +97,6 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={forgotPassword} disabled={busy} accessibilityRole="button">
             <Text style={styles.forgotText}>{t('forgotPassword')}</Text>
           </TouchableOpacity>
-
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>{t('orContinueWith')}</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialRow}>
-            <Pressable style={styles.socialBtn} onPress={() => socialLogin('google')}>
-              <Text style={styles.socialIcon}>G</Text>
-              <Text style={styles.socialText}>{t('google')}</Text>
-            </Pressable>
-            <Pressable style={styles.socialBtn} onPress={() => socialLogin('facebook')}>
-              <Text style={styles.socialIcon}>f</Text>
-              <Text style={styles.socialText}>{t('facebook')}</Text>
-            </Pressable>
-          </View>
 
           <View style={styles.switchRow}>
             <Text style={styles.switchText}>{t('noAccount')} </Text>

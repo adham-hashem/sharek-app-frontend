@@ -3,8 +3,7 @@ import { StyleSheet, View, Text, TextInput, TouchableOpacity, ActivityIndicator,
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { Mail, Lock, User, Moon, Church, Globe, Check, Scroll } from 'lucide-react-native';
+import { Mail, Lock, User, Moon, Church, Globe, Check, Scroll, Phone } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { UserReligion } from '@/lib/supabase';
 
@@ -22,33 +21,26 @@ const religionOptions: Array<{
 ];
 
 export default function RegisterScreen() {
-  const { signUp, signInWithOAuth, t } = useAuth();
+  const { signUp, t, language } = useAuth();
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [religion, setReligion] = useState<UserReligion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const socialLogin = async (provider: 'google' | 'facebook') => {
-      setError(null);
-      setBusy(true);
-      const { error: err, url } = await signInWithOAuth(provider);
-      setBusy(false);
-      if (err) setError(t(err));
-      else if (url) await WebBrowser.openBrowserAsync(url);
-    };
-
     const submit = async () => {
     setError(null);
     if (!fullName.trim()) return setError(t('fullNameRequired'));
-    if (!email.trim()) return setError(t('emailRequired'));
-    if (!/^\S+@\S+\.\S+$/.test(email)) return setError(t('invalidEmail'));
+    if (!phone.trim()) return setError(t('phoneRequired'));
+    if (!/^\+?[0-9]{8,15}$/.test(phone.replace(/\s/g, ''))) return setError(t('invalidPhone'));
+    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email)) return setError(t('invalidEmail'));
     if (password.length < 6) return setError(t('passwordRequired'));
     if (!religion) return setError(t('religionRequired'));
 
     setBusy(true);
-    const res = await signUp(email.trim(), password, fullName.trim(), religion);
+    const res = await signUp(phone.trim(), email.trim(), password, fullName.trim(), religion);
     setBusy(false);
     if (res.error) {
       setError(t(res.error));
@@ -56,7 +48,9 @@ export default function RegisterScreen() {
     }
     
     if (!res.session) {
-      setError(t('emailConfirmationRequired') || 'Please check your email to confirm your account.');
+      setError(language === 'ar'
+        ? 'تم إنشاء الحساب. يرجى تأكيد رقم الهاتف باستخدام رسالة التحقق قبل تسجيل الدخول.'
+        : 'Account created. Please confirm your phone number with the verification message before signing in.');
       setTimeout(() => {
         router.replace('/(auth)/login');
       }, 3000);
@@ -89,10 +83,24 @@ export default function RegisterScreen() {
           </View>
 
           <View style={styles.inputWrap}>
+            <Phone color={colors.brownMuted} size={20} />
+            <TextInput
+              style={styles.input}
+              placeholder={language === 'ar' ? 'رقم الهاتف مع كود الدولة' : 'Phone number with country code'}
+              value={phone}
+              onChangeText={setPhone}
+              placeholderTextColor={colors.brownMuted}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <View style={styles.inputWrap}>
             <Mail color={colors.brownMuted} size={20} />
             <TextInput
               style={styles.input}
-              placeholder={t('email')}
+              placeholder={language === 'ar' ? 'البريد الإلكتروني اختياري لاستعادة كلمة المرور' : 'Email optional for password recovery'}
               value={email}
               onChangeText={setEmail}
               placeholderTextColor={colors.brownMuted}
@@ -101,6 +109,11 @@ export default function RegisterScreen() {
               autoCorrect={false}
             />
           </View>
+          <Text style={styles.helperText}>
+            {language === 'ar'
+              ? 'سنستخدم البريد الإلكتروني فقط لاستعادة كلمة المرور وإرسال رابط آمن عند الحاجة.'
+              : 'Email is used only for password recovery and secure reset links when needed.'}
+          </Text>
 
           <View style={styles.inputWrap}>
             <Lock color={colors.brownMuted} size={20} />
@@ -180,6 +193,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md,
   },
   input: { ...typography.body, flex: 1, color: colors.brown, padding: 0 },
+  helperText: { ...typography.small, color: colors.brownMuted, marginTop: -spacing.sm, lineHeight: 20 },
 
   religionSection: {
     marginTop: spacing.xs,

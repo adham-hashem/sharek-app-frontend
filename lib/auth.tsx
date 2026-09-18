@@ -5,6 +5,7 @@ import { t as translate, isRTL } from './i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerPushDevice } from './push';
 import { Platform } from 'react-native';
+import { apiPublicPost } from './api';
 
 interface AuthContextType {
   session: Session | null;
@@ -16,10 +17,10 @@ interface AuthContextType {
   setLanguage: (lang: AppLanguage) => Promise<void>;
   t: (key: string) => string;
   rtl: boolean;
-  signUp: (email: string, password: string, fullName: string, religion: UserReligion | null) => Promise<{ error: string | null, session?: Session | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (phone: string, email: string, password: string, fullName: string, religion: UserReligion | null) => Promise<{ error: string | null, session?: Session | null }>;
+  signIn: (identifier: string, password: string) => Promise<{ error: string | null }>;
   signInWithOAuth: (provider: 'google' | 'facebook') => Promise<{ error: string | null, url: string | null }>;
-  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  resetPassword: (identifier: string) => Promise<{ error: string | null; recoveryEmail?: string | null; phone?: string | null }>;
   signOut: () => Promise<{ error: string | null }>;
   updateRole: (role: UserRole) => Promise<{ error: string | null }>;
   updateMode: (mode: UserMode) => Promise<{ error: string | null }>;
@@ -153,28 +154,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session]);
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string, religion: UserReligion | null) => {
+  const normalizePhone = (value: string) => value.trim().replace(/[^\d+]/g, '');
+
+  const signUp = useCallback(async (phone: string, email: string, password: string, fullName: string, religion: UserReligion | null) => {
+    const savedLang = await AsyncStorage.getItem('sharek_lang');
+    const lang: AppLanguage = savedLang === 'en' ? 'en' : 'ar';
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedEmail = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.signUp({
-      email,
+      phone: normalizedPhone,
       password,
-      options: { emailRedirectTo: getAuthRedirectUrl('/') },
+      options: {
+        data: {
+          full_name: fullName,
+          email: normalizedEmail,
+          recovery_email: normalizedEmail,
+          phone: normalizedPhone,
+          language: lang,
+          religion,
+        },
+      },
     });
     if (error) {
-      if (error.message.includes('already')) return { error: 'emailInUse' };
+      if (error.message.toLowerCase().includes('already')) return { error: 'accountAlreadyExists' };
       return { error: 'authError' };
     }
-    if (data.user) {
-      const savedLang = await AsyncStorage.getItem('sharek_lang');
-      const lang: AppLanguage = savedLang === 'en' ? 'en' : 'ar';
+    if (data.user && data.session) {
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
         full_name: fullName,
-        email,
+        email: normalizedEmail,
+        phone: normalizedPhone,
         role: 'skipped',
         language: lang,
         religion: religion,
       });
-      if (profileError) console.error('profile insert error', profileError);
+      if (profileError && profileError.code !== '23505') console.error('profile insert error', profileError);
       await supabase.from('user_settings').insert({ user_id: data.user.id });
     }
     return { error: null, session: data.session };
@@ -192,18 +207,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null, url: data.url };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
+  const signIn = useCallback(async (identifier: string, password: string) => {
+    try {
+      const { session: nextSession } = await apiPublicPost<{ session: Session }>('/auth/password-login', { identifier, password });
+      const { error } = await supabase.auth.setSession({
+        access_token: nextSession.access_token,
+        refresh_token: nextSession.refresh_token,
+      });
+      if (error) return { error: 'invalidCredentials' };
+    } catch {
       return { error: 'invalidCredentials' };
     }
     return { error: null };
   }, []);
 
-  const resetPassword = useCallback(async (email: string) => {
-    if (!email.trim()) return { error: 'emailRequired' };
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: getAuthRedirectUrl('/reset-password') });
-    return { error: error ? 'errorGeneric' : null };
+  const resetPassword = useCallback(async (identifier: string) => {
+    if (!identifier.trim()) return { error: 'loginIdentifierRequired' };
+    try {
+      const result = await apiPublicPost<{ ok: boolean; recoveryEmail: string | null; phone: string | null }>('/auth/recovery/start', { identifier });
+      return { error: null, recoveryEmail: result.recoveryEmail, phone: result.phone };
+    } catch {
+      return { error: 'errorGeneric' };
+    }
   }, []);
 
   const signOut = useCallback(async () => {
