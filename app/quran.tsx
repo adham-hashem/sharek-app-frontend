@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Platform, Image } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
@@ -47,6 +47,7 @@ export default function QuranScreen() {
   const { t, language, rtl } = useAuth();
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const webViewRef = useRef<WebView>(null);
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
 
@@ -54,6 +55,7 @@ export default function QuranScreen() {
     const clamped = Math.max(1, Math.min(TOTAL_PAGES, p));
     setPage(clamped);
     setLoading(true);
+    setLoadError(false);
   }, []);
 
   const goPrev = () => goToPage(page - 1);
@@ -70,7 +72,7 @@ export default function QuranScreen() {
       </View>
 
       <View style={styles.pageContainer}>
-        {loading && (
+        {loading && !loadError && (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={[styles.loadingText, { fontFamily: `${font}Regular` }]}>
@@ -78,17 +80,40 @@ export default function QuranScreen() {
             </Text>
           </View>
         )}
-        <WebView
-          ref={webViewRef}
-          source={{ html: pageHtml(page) }}
-          style={styles.webView}
-          scrollEnabled
-          showsVerticalScrollIndicator={false}
-          onLoadEnd={() => setLoading(false)}
-          originWhitelist={['*']}
-          javaScriptEnabled={false}
-          scalesPageToFit={Platform.OS === 'android'}
-        />
+        {Platform.OS === 'web' ? (
+          <Image
+            source={{ uri: pageImageUrl(page) }}
+            style={styles.pageImage}
+            resizeMode="contain"
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setLoadError(true); }}
+          />
+        ) : (
+          <WebView
+            ref={webViewRef}
+            source={{ html: pageHtml(page) }}
+            style={styles.webView}
+            scrollEnabled
+            showsVerticalScrollIndicator={false}
+            onLoadEnd={() => setLoading(false)}
+            onError={() => { setLoading(false); setLoadError(true); }}
+            originWhitelist={['*']}
+            javaScriptEnabled={false}
+            scalesPageToFit={Platform.OS === 'android'}
+          />
+        )}
+        {loadError && (
+          <View style={styles.errorOverlay}>
+            <Text style={[styles.loadingText, { fontFamily: `${font}Regular` }]}>
+              {language === 'ar' ? 'تعذر تحميل صفحة المصحف' : 'Could not load this Quran page'}
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => goToPage(page)}>
+              <Text style={[styles.navText, { fontFamily: `${font}SemiBold` }]}>
+                {language === 'ar' ? 'إعادة المحاولة' : 'Retry'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.navBar}>
@@ -143,6 +168,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceAlt,
   },
+  pageImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.surfaceAlt,
+  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
@@ -154,6 +185,21 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.brownMuted,
     marginTop: spacing.sm,
+  },
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceAlt,
+    zIndex: 2,
+    padding: spacing.lg,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
   },
   navBar: {
     flexDirection: 'row',
