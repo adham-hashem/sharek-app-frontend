@@ -249,10 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.rpc('update_own_profile_role', { p_role: role });
     if (error) return { error: 'errorGeneric' };
     if (role === 'needer' || role === 'donor') {
-      const { error: modeError } = await supabase
-        .from('profiles')
-        .update({ mode: role })
-        .eq('id', session.user.id);
+      const { error: modeError } = await supabase.rpc('update_own_profile_mode', { p_mode: role });
       if (modeError) return { error: 'errorGeneric' };
     }
     await loadProfile(session.user.id);
@@ -261,10 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateMode = useCallback(async (mode: UserMode) => {
     if (!session?.user) return { error: 'authError' };
-    const { error } = await supabase
-      .from('profiles')
-      .update({ mode })
-      .eq('id', session.user.id);
+    const { error } = await supabase.rpc('update_own_profile_mode', { p_mode: mode });
     if (error) return { error: 'errorGeneric' };
     await loadProfile(session.user.id);
     return { error: null };
