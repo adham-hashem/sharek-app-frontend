@@ -145,7 +145,7 @@ const ar: Dict = {
 
   fullNameRequired: 'الاسم الكامل مطلوب',
   phoneRequired: 'رقم الهاتف مطلوب',
-  invalidPhone: 'رقم الهاتف غير صحيح. استخدم كود الدولة مثل +971...',
+  invalidPhone: 'رقم الهاتف غير صحيح. أدخل الرقم المحلي من 8 إلى 15 رقمًا بدون كود الدولة.',
   loginIdentifierRequired: 'اكتب رقم الهاتف أو البريد الإلكتروني',
   emailRequired: 'البريد الإلكتروني مطلوب',
   passwordRequired: 'كلمة المرور مطلوبة (6 أحرف على الأقل)',
@@ -571,7 +571,7 @@ const en: Dict = {
 
   fullNameRequired: 'Full name is required',
   phoneRequired: 'Phone number is required',
-  invalidPhone: 'Invalid phone number. Use the country code, for example +971...',
+  invalidPhone: 'Invalid phone number. Enter 8 to 15 local digits without a country code.',
   loginIdentifierRequired: 'Enter your phone number or email',
   emailRequired: 'Email is required',
   passwordRequired: 'Password is required (min 6 characters)',
