@@ -17,7 +17,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { router } from 'expo-router';
 import { apiFetch, apiPost } from '@/lib/api';
 import { createNotification } from '@/lib/notifications';
-import { getFoodImages, getPrimaryFoodImage } from '@/lib/foodImages';
+import { getFoodImages, getPrimaryFoodImage, resolveFoodImages } from '@/lib/foodImages';
 import { playInteractionSound } from '@/lib/sound';
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
@@ -270,7 +270,7 @@ function NeedyFlow() {
       return;
     }
 
-    const visibleDonations = donations;
+    const visibleDonations = await Promise.all(donations.map(resolveFoodImages));
     const donorIds = [...new Set(visibleDonations.map(d => d.user_id))];
     const profileMap = new Map<string, Profile>();
     if (donorIds.length > 0) {
@@ -565,7 +565,7 @@ function NeedyFlow() {
             </Text>
           </View>
         ) : (
-          <View style={styles.mealList}>
+        <View style={styles.mealList}>
             {meals.map((meal, index) => {
               const isUrgent = new Date(meal.expires_at).getTime() - Date.now() < 3600_000;
               const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
@@ -771,11 +771,11 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center',
   },
   mealList: {
-    paddingHorizontal: spacing.lg, gap: spacing.md, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg, gap: spacing.md,
   },
   mealCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden',
-    width: Dimensions.get('window').width >= 900 ? '31.8%' : Dimensions.get('window').width >= 600 ? '48.5%' : '100%',
+    width: '100%',
     borderWidth: 1.5, borderColor: colors.border,
     shadowColor: colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3,
   },
