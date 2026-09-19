@@ -300,49 +300,36 @@ function FoodForm({ onBack }: { onBack: () => void }) {
 
   const publish = async () => {
     if (!foodName.trim()) return Alert.alert(t('foodNameRequired'));
-    let publishLocation = location;
-    if (!publishLocation) {
-      const ok = await ensureLocationPermission();
-      if (ok) {
-        publishLocation = await getCurrentLocation();
-        if (publishLocation) setLocation(publishLocation);
-      }
-    }
-    if (!publishLocation) return Alert.alert(t('locationError'));
-    if (expiresAt.getTime() <= Date.now()) return Alert.alert(t('setExpiry'));
+    if (!user?.id) return Alert.alert(t('publishFoodFailed'), t('errorGeneric'));
 
     setSubmitting(true);
+    try {
+      let publishLocation = location;
+      if (!publishLocation) {
+        const ok = await ensureLocationPermission();
+        if (ok) {
+          publishLocation = await getCurrentLocation();
+          if (publishLocation) setLocation(publishLocation);
+        }
+      }
+      if (!publishLocation) throw new Error(t('locationError'));
+      if (expiresAt.getTime() <= Date.now()) throw new Error(t('setExpiry'));
 
-    const imageUrls: string[] = [];
-    for (const photo of photos) {
-      let upload: Awaited<ReturnType<typeof buildFoodPhotoUpload>>;
-      try {
-        upload = await buildFoodPhotoUpload(photo, user!.id);
-      } catch {
-        setSubmitting(false);
-        Alert.alert(t('publishFoodFailed'), t('errorGeneric'));
-        return;
+      const imageUrls: string[] = [];
+      for (const photo of photos) {
+        const upload = await buildFoodPhotoUpload(photo, user.id);
+        const { error: upErr } = await supabase.storage.from('food-photos').upload(upload.path, upload.body as any, {
+          contentType: upload.contentType,
+          upsert: false,
+        });
+        if (upErr) throw upErr;
+        const { data: publicUrl } = supabase.storage.from('food-photos').getPublicUrl(upload.path);
+        if (!publicUrl?.publicUrl) throw new Error(t('errorGeneric'));
+        imageUrls.push(publicUrl.publicUrl);
       }
-      const { error: upErr } = await supabase.storage.from('food-photos').upload(upload.path, upload.body as any, {
-        contentType: upload.contentType,
-        upsert: false,
-      });
-      if (upErr) {
-        setSubmitting(false);
-        Alert.alert(t('publishFoodFailed'), upErr.message || t('errorGeneric'));
-        return;
-      }
-      const { data: signed } = await supabase.storage.from('food-photos').createSignedUrl(upload.path, 7 * 24 * 60 * 60);
-      if (!signed?.signedUrl) {
-        setSubmitting(false);
-        Alert.alert(t('errorGeneric'));
-        return;
-      }
-      imageUrls.push(signed.signedUrl);
-    }
 
-    const now = new Date();
-    const payload = {
+      const now = new Date();
+      const payload = {
         food_name: foodName.trim(),
         description: description.trim(),
         image_url: imageUrls[0] ?? null,
@@ -355,36 +342,33 @@ function FoodForm({ onBack }: { onBack: () => void }) {
         longitude: publishLocation.longitude,
         prepared_at: now.toISOString(),
         allergens: allergens.trim() || undefined,
-    };
+      };
 
-    try {
-      await apiPost<FoodDonation>('/v1/food-donations', payload);
-    } catch (error) {
-      const { error: dbError } = await supabase
-        .from('food_donations')
-        .insert({ ...payload, user_id: user!.id, status: 'available' })
-        .select()
-        .single();
-
-      if (dbError) {
-        setSubmitting(false);
-        Alert.alert(
-          t('publishFoodFailed'),
-          dbError.message || (error instanceof Error ? error.message : t('errorGeneric')),
-        );
-        return;
+      try {
+        await apiPost<FoodDonation>('/v1/food-donations', payload);
+      } catch (error) {
+        const { error: dbError } = await supabase
+          .from('food_donations')
+          .insert({ ...payload, user_id: user.id, status: 'available' })
+          .select()
+          .single();
+        if (dbError) throw new Error(dbError.message || (error instanceof Error ? error.message : t('errorGeneric')));
       }
+
+      setPublished(true);
+      setFoodName('');
+      setDescription('');
+      setAllergens('');
+      setPhotos([]);
+      setMeals(1);
+      setExpiryHours(3);
+      setExpiryMinutes(0);
+      setExpiresAt(new Date(Date.now() + 3 * 3600000));
+    } catch (error) {
+      Alert.alert(t('publishFoodFailed'), error instanceof Error ? error.message : t('errorGeneric'));
+    } finally {
+      setSubmitting(false);
     }
-    setSubmitting(false);
-    setPublished(true);
-    setFoodName('');
-    setDescription('');
-    setAllergens('');
-    setPhotos([]);
-    setMeals(1);
-    setExpiryHours(3);
-    setExpiryMinutes(0);
-    setExpiresAt(new Date(Date.now() + 3 * 3600000));
   };
 
   if (published) {
