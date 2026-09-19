@@ -84,13 +84,24 @@ export async function createNotification(
   if (settings && !settings.notifications_enabled) return;
 
   const title = getNotificationTitle(type, lang);
-  await supabase.rpc('create_notification', {
+  const { error } = await supabase.rpc('create_notification', {
     p_user_id: userId,
     p_type: type,
     p_title: title,
     p_body: body,
     p_data: data ? JSON.stringify(data) : null,
   });
+  // Keep notifications working when the RPC is not present in an older
+  // Supabase project; the RLS policy still protects the direct insert.
+  if (error && (error.code === '42883' || error.code === 'PGRST202' || error.message?.includes('404'))) {
+    await supabase.from('notifications').insert({
+      user_id: userId,
+      type,
+      title,
+      body,
+      data: data ?? null,
+    });
+  }
 }
 
 export function playNotificationFeedback(

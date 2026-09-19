@@ -21,6 +21,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { AchievementBadgeMini } from '@/components/AchievementBadge';
 import { RatingModal } from '@/components/RatingModal';
 import { createNotification } from '@/lib/notifications';
+import { playInteractionSound } from '@/lib/sound';
 import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -330,9 +331,10 @@ export default function ChatScreen() {
           );
         }
       } else {
-        await supabase.rpc('update_claimer_location', {
+        const { error: locationError } = await supabase.rpc('update_claimer_location', {
           p_donation_id: donationId, p_lat: coords.latitude, p_lng: coords.longitude,
         });
+        if (locationError) return;
         if (effectiveOtherId) {
           createNotification(
             effectiveOtherId, 'location_updated',
@@ -833,7 +835,7 @@ export default function ChatScreen() {
           {isDonor && donation?.status === 'claimed' && (
             <TouchableOpacity
               style={styles.pickupActionBtn}
-              onPress={markReadyForPickup}
+              onPress={() => { void playInteractionSound(); void markReadyForPickup(); }}
               disabled={actionBusy}
               activeOpacity={0.8}
             >
