@@ -27,7 +27,7 @@ function RootNav() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash.includes('access_token') && window.location.hash.includes('type=recovery')) {
-      router.replace('/reset-password');
+      router.replace('/reset-password' as any);
       return;
     }
     if (loading || session || pathname === '/' || isAuthRoute || isPasswordRecoveryRoute) return;

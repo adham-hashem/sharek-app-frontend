@@ -79,7 +79,10 @@ export default function DonateScreen() {
   const [mainTab, setMainTab] = useState<MainTab>('choose');
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
 
-  const isDonor = profile?.role === 'donor' || profile?.role === 'charity' || profile?.role === 'restaurant' || profile?.role === 'hotel';
+  const donorRoles = ['donor', 'charity', 'organization', 'restaurant', 'hotel'];
+  const isDonor = profile?.mode === 'donor' || (!profile?.mode && donorRoles.includes(profile?.role ?? ''));
+  const isNeeder = profile?.mode === 'needer' || (!profile?.mode && profile?.role === 'needer');
+  const needsMode = !isDonor && !isNeeder;
 
   return (
     <View style={[styles.container, { flex: 1 }]}>
@@ -92,84 +95,115 @@ export default function DonateScreen() {
             <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
               {t('donate')}
             </Text>
+            <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', fontFamily: `${font}Regular` }]}>
+              {isDonor ? t('shareMealDonorSub') : isNeeder ? t('shareMealNeederSub') : t('shareMealChooseModeSub')}
+            </Text>
           </View>
-          <TouchableOpacity
-            style={styles.choiceCard}
-            onPress={() => setMainTab('food')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.choiceIcon, { backgroundColor: colors.greenBg }]}>
-              <UtensilsCrossed size={26} color={colors.green} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
-                {t('shareFood')}
-              </Text>
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                {t('donatingFood')}
-              </Text>
-            </View>
-            <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.choiceCard}
-            onPress={() => setMainTab('money')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.choiceIcon, { backgroundColor: colors.warningBg }]}>
-              <DollarSign size={26} color={colors.goldenDark} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
-                {t('donateMoneyMeals')}
-              </Text>
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                {t('donatingMoney')}
-              </Text>
-            </View>
-            <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
-          </TouchableOpacity>
 
           {isDonor && (
+            <>
+              <TouchableOpacity
+                style={styles.choiceCard}
+                onPress={() => setMainTab('food')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.choiceIcon, { backgroundColor: colors.greenBg }]}>
+                  <UtensilsCrossed size={26} color={colors.green} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                    {t('shareFood')}
+                  </Text>
+                  <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                    {t('shareFoodDonorDesc')}
+                  </Text>
+                </View>
+                <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.choiceCard}
+                onPress={() => setMainTab('requests')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.choiceIcon, { backgroundColor: colors.errorBg }]}>
+                  <Bell size={26} color={colors.coral} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                    {t('openRequests')}
+                  </Text>
+                  <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                    {t('openRequestsDonorDesc')}
+                  </Text>
+                </View>
+                <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+              </TouchableOpacity>
+            </>
+          )}
+
+          {isNeeder && (
             <TouchableOpacity
               style={styles.choiceCard}
-              onPress={() => setMainTab('requests')}
+              onPress={() => router.push('/(tabs)/request')}
               activeOpacity={0.8}
             >
-              <View style={[styles.choiceIcon, { backgroundColor: colors.errorBg }]}>
-                <Bell size={26} color={colors.coral} />
+              <View style={[styles.choiceIcon, { backgroundColor: colors.greenBg }]}>
+                <Heart size={26} color={colors.green} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
-                  {t('openRequests')}
+                  {t('availableMealsNearby')}
                 </Text>
                 <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                  {t('acceptRequest')}
+                  {t('shareMealNeederActionDesc')}
                 </Text>
               </View>
               <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={styles.choiceCard}
-            onPress={() => setMainTab('claimed')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.choiceIcon, { backgroundColor: colors.surfaceMuted }]}>
-              <MessageCircle size={26} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
-                {t('chatTitle')}
-              </Text>
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                {t('chatWithDonor')}
-              </Text>
-            </View>
-            <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
-          </TouchableOpacity>
+          {needsMode && (
+            <TouchableOpacity
+              style={styles.choiceCard}
+              onPress={() => router.replace('/(auth)/role')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.choiceIcon, { backgroundColor: colors.warningBg }]}>
+                <Building2 size={26} color={colors.goldenDark} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                  {t('selectRole')}
+                </Text>
+                <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                  {t('shareMealChooseModeDesc')}
+                </Text>
+              </View>
+              <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+            </TouchableOpacity>
+          )}
+
+          {(isDonor || isNeeder) && (
+            <TouchableOpacity
+              style={styles.choiceCard}
+              onPress={() => setMainTab('claimed')}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.choiceIcon, { backgroundColor: colors.surfaceMuted }]}>
+                <MessageCircle size={26} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                  {t('chatTitle')}
+                </Text>
+                <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                  {isDonor ? t('chatWithClaimer') : t('chatWithDonor')}
+                </Text>
+              </View>
+              <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       )}
 
