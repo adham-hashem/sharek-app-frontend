@@ -145,7 +145,13 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         const foodDetails = foodIds.length
           ? await supabase.rpc('get_nearby_food_details', { p_ids: foodIds })
           : { data: [], error: null };
-        setDbFood(foodDetails.error ? [] : ((foodDetails.data ?? []) as FoodDonation[]));
+        let foodRows = foodDetails.error ? [] : ((foodDetails.data ?? []) as FoodDonation[]);
+        if (foodIds.length > 0) {
+          const { data: sourceRows } = await supabase.from('food_donations').select('*').in('id', foodIds);
+          const sourceMap = new Map(((sourceRows ?? []) as FoodDonation[]).map(row => [row.id, row]));
+          foodRows = foodRows.map(food => ({ ...sourceMap.get(food.id), ...food, image_url: food.image_url ?? sourceMap.get(food.id)?.image_url ?? null, image_urls: food.image_urls ?? sourceMap.get(food.id)?.image_urls ?? null }));
+        }
+        setDbFood(foodRows);
         if (requestIds.length > 0) {
           const { data, error } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
           const fallback = items.filter((item) => item.item_type === 'request').map(mapItemToRequest);

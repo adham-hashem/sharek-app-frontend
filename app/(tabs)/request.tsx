@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { apiFetch, apiPost } from '@/lib/api';
 import { createNotification } from '@/lib/notifications';
 import { getFoodImages, getPrimaryFoodImage } from '@/lib/foodImages';
+import { playInteractionSound } from '@/lib/sound';
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
 type NearbyMapItem = {
@@ -233,6 +234,9 @@ function NeedyFlow() {
         const fallback = items.filter((item) => item.item_type === 'food').map(mapItemToFoodDonation);
         const { data, error } = await supabase.rpc('get_nearby_food_details', { p_ids: foodIds });
         donations = error || !data?.length ? fallback : (data as FoodDonation[]);
+        const { data: sourceRows } = await supabase.from('food_donations').select('*').in('id', foodIds);
+        const sourceMap = new Map(((sourceRows ?? []) as FoodDonation[]).map(row => [row.id, row]));
+        donations = donations.map(donation => ({ ...sourceMap.get(donation.id), ...donation, image_url: donation.image_url ?? sourceMap.get(donation.id)?.image_url ?? null, image_urls: donation.image_urls ?? sourceMap.get(donation.id)?.image_urls ?? null }));
       }
     } catch {
       const { data } = await supabase
@@ -574,7 +578,7 @@ function NeedyFlow() {
               const primaryImage = foodImages[0];
 
               return (
-                <TouchableOpacity key={meal.id} style={styles.mealCard} activeOpacity={0.92} onPress={() => setSelectedMeal(meal)}>
+                  <TouchableOpacity key={meal.id} style={styles.mealCard} activeOpacity={0.92} onPress={() => { void playInteractionSound(); setSelectedMeal(meal); }}>
                   <View style={styles.mealPhotoWrap}>
                     {primaryImage ? (
                       <Image source={{ uri: primaryImage }} style={styles.mealPhoto} />
@@ -724,7 +728,7 @@ function NeedyFlow() {
               <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold`, marginTop: spacing.md }]}>{selectedMeal.food_name}</Text>
               <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular`, marginTop: spacing.xs }]}>{selectedMeal.description || t('partnerMeal')}</Text>
               <View style={styles.modalDetailsRow}><Text style={styles.modalDetail}>{selectedMeal.meals} {t('meals')}</Text><Text style={styles.modalDetail}>{distText(selectedMeal.distance_km)}</Text><Text style={styles.modalDetail}>{t('remainingTime')}: <LiveCountdown iso={selectedMeal.expires_at} lang={language} /></Text></View>
-              <TouchableOpacity style={styles.modalClaimBtn} onPress={() => { const meal = selectedMeal; setSelectedMeal(null); void claimMeal(meal); }} disabled={selectedMeal.user_id === user?.id || claimingId === selectedMeal.id}><Text style={styles.modalClaimText}>{selectedMeal.user_id === user?.id ? t('myPublishedMeal') : t('orderMealBtn')}</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.modalClaimBtn} onPress={() => { void playInteractionSound(); const meal = selectedMeal; setSelectedMeal(null); void claimMeal(meal); }} disabled={selectedMeal.user_id === user?.id || claimingId === selectedMeal.id}><Text style={styles.modalClaimText}>{selectedMeal.user_id === user?.id ? t('myPublishedMeal') : t('orderMealBtn')}</Text></TouchableOpacity>
             </>}
           </View>
         </View>

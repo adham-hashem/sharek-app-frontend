@@ -22,6 +22,7 @@ import { AchievementBadgeMini } from '@/components/AchievementBadge';
 import { RatingModal } from '@/components/RatingModal';
 import { createNotification } from '@/lib/notifications';
 import { playInteractionSound } from '@/lib/sound';
+import { playNotificationSound, vibrateDevice } from '@/lib/sound';
 import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -300,6 +301,8 @@ export default function ChatScreen() {
           return [...prev, newMsg];
         });
         if (newMsg.recipient_id === user?.id && newMsg.read_at === null) {
+          void playNotificationSound('message');
+          vibrateDevice(false);
           await supabase
             .from('messages')
             .update({ read_at: new Date().toISOString() })
@@ -1046,7 +1049,7 @@ export default function ChatScreen() {
           />
           <TouchableOpacity
             style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.4 }]}
-            onPress={sendMessage}
+            onPress={() => { void playInteractionSound(); void sendMessage(); }}
             disabled={!input.trim() || sending}
             activeOpacity={0.7}
           >

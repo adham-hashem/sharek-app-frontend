@@ -12,7 +12,7 @@ import {
   Navigation, Star, Loader2, PackageCheck, Truck, PartyPopper, Building2,
 } from 'lucide-react-native';
 import { supabase, FoodDonation, MealRequest, FoodClaim, Match, Profile } from '@/lib/supabase';
-import { playNotificationSound, vibrateDevice, notifyIncomingRequest } from '@/lib/sound';
+import { playNotificationSound, playInteractionSound, vibrateDevice, notifyIncomingRequest } from '@/lib/sound';
 import { apiFetch, apiPost, apiPatch } from '@/lib/api';
 import { router } from 'expo-router';
 import { ensureLocationPermission, getCurrentLocation, watchLocation, Coords, haversineKm } from '@/lib/location';
@@ -548,7 +548,7 @@ function FoodForm({ onBack }: { onBack: () => void }) {
 
       <TouchableOpacity
         style={[styles.publishBtn, submitting && { opacity: 0.5 }]}
-        onPress={publish}
+        onPress={() => { void playInteractionSound(); void publish(); }}
         disabled={submitting}
         activeOpacity={0.8}
       >
