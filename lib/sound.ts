@@ -31,6 +31,31 @@ const SOUND_FILES = {
 
 export type SoundType = keyof typeof SOUND_FILES | 'default';
 
+export async function playInteractionSound() {
+  try {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextCtor) {
+        const context = new AudioContextCtor();
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 660;
+        gain.gain.setValueAtTime(0.035, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.08);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.08);
+        setTimeout(() => { void context.close(); }, 150);
+      }
+      return;
+    }
+    await Haptics.selectionAsync();
+  } catch {
+    // Feedback must never block the action.
+  }
+}
+
 export async function playNotificationSound(type: SoundType = 'default') {
   if (Platform.OS === 'web') {
     // Basic web fallback or ignore
