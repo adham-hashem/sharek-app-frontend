@@ -17,6 +17,7 @@ import { router } from 'expo-router';
 import { ensureLocationPermission, getCurrentLocation, watchLocation, haversineKm, Coords } from '@/lib/location';
 import { SuggestedMeals } from '@/components/SuggestedMeals';
 import { getUnreadCount, createNotification } from '@/lib/notifications';
+import { playInteractionSound } from '@/lib/sound';
 import { SharekMap } from '@/components/SharekMap';
 import { getPrimaryFoodImage } from '@/lib/foodImages';
 
@@ -339,11 +340,11 @@ export default function MapScreen() {
   const showBottomCard = useCallback((item: SelectedItem) => {
     setSelected(item);
     setActionResult(null);
-    Animated.spring(bottomAnim, { toValue: 1, useNativeDriver: true, tension: 50, friction: 8 }).start();
+    Animated.spring(bottomAnim, { toValue: 1, useNativeDriver: Platform.OS !== 'web', tension: 50, friction: 8 }).start();
   }, [bottomAnim]);
 
   const hideBottomCard = useCallback(() => {
-    Animated.timing(bottomAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    Animated.timing(bottomAnim, { toValue: 0, duration: 200, useNativeDriver: Platform.OS !== 'web' }).start();
     setTimeout(() => setSelected(null), 200);
   }, [bottomAnim]);
 
@@ -439,6 +440,19 @@ export default function MapScreen() {
     setTimeout(() => { loadData(); }, 1500);
   };
 
+  const deleteFoodDonation = async (donation: FoodDonation) => {
+    if (donation.user_id !== user?.id || donation.status !== 'available') return;
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm(language === 'ar' ? 'هل تريد حذف عرض الوجبة؟' : 'Delete this food offer?')
+      : await new Promise<boolean>(resolve => Alert.alert(t('deleteMeal'), t('deleteMealPrompt'), [{ text: t('back'), style: 'cancel', onPress: () => resolve(false) }, { text: t('confirmYes'), onPress: () => resolve(true) }]));
+    if (!confirmed) return;
+    setActionBusy(true);
+    const { error } = await supabase.from('food_donations').delete().eq('id', donation.id).eq('user_id', user.id).eq('status', 'available');
+    setActionBusy(false);
+    if (error) Alert.alert(t('errorGeneric'), error.message);
+    else { hideBottomCard(); setDonations(prev => prev.filter(item => item.id !== donation.id)); }
+  };
+
   const distText = (dist: number | null) => {
     if (dist === null) return '';
     if (dist < 1) return `${Math.round(dist * 1000)} m`;
@@ -474,7 +488,7 @@ export default function MapScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.push('/notifications' as never)}
+            onPress={() => { void playInteractionSound(); router.push('/notifications' as never); }}
             style={styles.bellBtn}
             activeOpacity={0.7}
           >
@@ -490,7 +504,7 @@ export default function MapScreen() {
           <View style={styles.logoCenter}>
             <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
           </View>
-          <TouchableOpacity onPress={loadLocation} disabled={locating} style={styles.refreshBtn} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => { void playInteractionSound(); void loadLocation(); }} disabled={locating} style={styles.refreshBtn} activeOpacity={0.7}>
             {locating ? <ActivityIndicator color={colors.primary} size={16} /> : <LocateFixed size={20} color={colors.primary} />}
           </TouchableOpacity>
         </View>
@@ -498,13 +512,13 @@ export default function MapScreen() {
         {/* Quick action button */}
         <View style={styles.quickActions}>
           {effectiveMode === 'needer' && (
-            <TouchableOpacity style={[styles.quickAction, styles.requestAction]} onPress={() => router.push('/(tabs)/request')} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.quickAction, styles.requestAction]} onPress={() => { void playInteractionSound(); router.push('/(tabs)/request'); }} activeOpacity={0.85}>
               <Heart size={21} color={colors.white} fill={colors.white} />
               <Text style={[styles.quickActionText, { fontFamily: `${font}Bold` }]}>{t('requestMealNow')}</Text>
             </TouchableOpacity>
           )}
           {effectiveMode === 'donor' && (
-            <TouchableOpacity style={[styles.quickAction, styles.shareAction]} onPress={() => router.push('/(tabs)/donate')} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.quickAction, styles.shareAction]} onPress={() => { void playInteractionSound(); router.push('/(tabs)/donate'); }} activeOpacity={0.85}>
               <UtensilsCrossed size={21} color={colors.white} />
               <Text style={[styles.quickActionText, { fontFamily: `${font}Bold` }]}>{t('shareFoodNow')}</Text>
             </TouchableOpacity>
@@ -786,6 +800,12 @@ export default function MapScreen() {
                   </>
                 )}
               </TouchableOpacity>
+              {selectedDonation.user_id === user?.id && selectedDonation.status === 'available' && (
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.error, marginTop: spacing.sm }]} onPress={() => { void deleteFoodDonation(selectedDonation); }} disabled={actionBusy} activeOpacity={0.8}>
+                  <X size={20} color={colors.white} />
+                  <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>{t('deleteMeal')}</Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           )}
         </Animated.View>

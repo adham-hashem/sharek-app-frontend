@@ -449,6 +449,8 @@ const ar: Dict = {
   pickupWindow: 'وقت الاستلام',
   pickupCompleted: 'اكتمل الاستلام',
   foodReceivedDesc: 'تم تأكيد استلام الوجبة بنجاح',
+  deleteMeal: 'حذف عرض الوجبة',
+  deleteMealPrompt: 'هل تريد حذف عرض الوجبة؟',
   foodTypeLabel: 'النوع',
   mealDetails: 'تفاصيل الوجبة',
 };
@@ -875,6 +877,8 @@ const en: Dict = {
   pickupWindow: 'Pickup window',
   pickupCompleted: 'Pickup completed',
   foodReceivedDesc: 'Meal receipt was confirmed successfully',
+  deleteMeal: 'Delete food offer',
+  deleteMealPrompt: 'Do you want to delete this food offer?',
   foodTypeLabel: 'Type',
   mealDetails: 'Meal details',
 };

@@ -323,9 +323,9 @@ function FoodForm({ onBack }: { onBack: () => void }) {
           upsert: false,
         });
         if (upErr) throw upErr;
-        const { data: publicUrl } = supabase.storage.from('food-photos').getPublicUrl(upload.path);
-        if (!publicUrl?.publicUrl) throw new Error(t('errorGeneric'));
-        imageUrls.push(publicUrl.publicUrl);
+        const { data: signed } = await supabase.storage.from('food-photos').createSignedUrl(upload.path, 30 * 24 * 60 * 60);
+        if (!signed?.signedUrl) throw new Error(t('errorGeneric'));
+        imageUrls.push(signed.signedUrl);
       }
 
       const now = new Date();
