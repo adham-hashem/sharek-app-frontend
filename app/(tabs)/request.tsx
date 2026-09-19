@@ -399,6 +399,20 @@ function NeedyFlow() {
     });
   };
 
+  const confirmReceivedDonation = (donation: FoodDonation) => {
+    Alert.alert(t('confirmReceived'), t('confirmReceivedPrompt'), [
+      { text: t('back'), style: 'cancel' },
+      {
+        text: t('confirmYes'),
+        onPress: async () => {
+          const { error } = await supabase.rpc('confirm_food_received', { p_donation_id: donation.id });
+          if (error) Alert.alert(t('errorGeneric'));
+          else await checkActiveClaims();
+        },
+      },
+    ]);
+  };
+
   if (stage === 'claimed' && activeClaims.length > 0) {
     return (
       <View style={styles.container}>
@@ -455,7 +469,7 @@ function NeedyFlow() {
                   {isReady && (
                     <TouchableOpacity
                       style={styles.activeClaimConfirmBtn}
-                      onPress={() => openChatForDonation(donation)}
+                      onPress={() => confirmReceivedDonation(donation)}
                       activeOpacity={0.8}
                     >
                       <CheckCircle2 size={20} color={colors.green} />
@@ -684,7 +698,11 @@ function NeedyFlow() {
           <View style={styles.detailsModal}>
             <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedMeal(null)}><X size={22} color={colors.brown} /></TouchableOpacity>
             {selectedMeal && <>
-              {getPrimaryFoodImage(selectedMeal) ? <Image source={{ uri: getPrimaryFoodImage(selectedMeal) as string }} style={styles.detailsImage} /> : <View style={[styles.detailsImage, styles.mealPhotoFallback]}><UtensilsCrossed size={44} color={colors.brownMuted} /></View>}
+              {getFoodImages(selectedMeal).length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.detailsImageList}>
+                  {getFoodImages(selectedMeal).map((image, index) => <Image key={`${image}-${index}`} source={{ uri: image }} style={styles.detailsImage} />)}
+                </ScrollView>
+              ) : <View style={[styles.detailsImage, styles.mealPhotoFallback]}><UtensilsCrossed size={44} color={colors.brownMuted} /></View>}
               <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold`, marginTop: spacing.md }]}>{selectedMeal.food_name}</Text>
               <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular`, marginTop: spacing.xs }]}>{selectedMeal.description || t('partnerMeal')}</Text>
               <View style={styles.modalDetailsRow}><Text style={styles.modalDetail}>{selectedMeal.meals} {t('meals')}</Text><Text style={styles.modalDetail}>{distText(selectedMeal.distance_km)}</Text><Text style={styles.modalDetail}>{t('remainingTime')}: <LiveCountdown iso={selectedMeal.expires_at} lang={language} /></Text></View>
@@ -742,7 +760,8 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(38, 24, 16, 0.55)', justifyContent: 'flex-end' },
   detailsModal: { backgroundColor: colors.background, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, minHeight: 360 },
   modalClose: { alignSelf: 'flex-end', padding: spacing.xs },
-  detailsImage: { width: '100%', height: 190, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
+  detailsImageList: { gap: spacing.sm },
+  detailsImage: { width: 270, height: 190, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
   modalDetailsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
   modalDetail: { ...typography.small, color: colors.brown, backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   modalClaimBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.lg },
