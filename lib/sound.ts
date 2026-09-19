@@ -20,37 +20,30 @@ Notifications?.setNotificationHandler({
 });
 
 let soundObj: AudioPlayer | null = null;
+let interactionSoundObj: AudioPlayer | null = null;
 
 const SOUND_FILES = {
+  interaction: require('../assets/sounds/interaction.mp3'),
   request: require('../assets/sounds/request.wav'),
   accepted: require('../assets/sounds/accepted.wav'),
   reservation: require('../assets/sounds/reservation.wav'),
   message: require('../assets/sounds/message.wav'),
   completed: require('../assets/sounds/completed.wav'),
+  important: require('../assets/sounds/important-action.mp3'),
 };
 
 export type SoundType = keyof typeof SOUND_FILES | 'default';
 
 export async function playInteractionSound() {
   try {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextCtor) {
-        const context = new AudioContextCtor();
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        oscillator.type = 'sine';
-        oscillator.frequency.value = 660;
-        gain.gain.setValueAtTime(0.035, context.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.08);
-        oscillator.connect(gain).connect(context.destination);
-        oscillator.start();
-        oscillator.stop(context.currentTime + 0.08);
-        setTimeout(() => { void context.close(); }, 150);
-      }
-      return;
+    if (!interactionSoundObj) {
+      interactionSoundObj = createAudioPlayer(SOUND_FILES.interaction);
+      interactionSoundObj.volume = 0.55;
+    } else {
+      await interactionSoundObj.seekTo(0);
     }
-    await Haptics.selectionAsync();
+    interactionSoundObj.play();
+    if (Platform.OS !== 'web') await Haptics.selectionAsync();
   } catch {
     // Feedback must never block the action.
   }
@@ -74,7 +67,8 @@ export async function playNotificationSound(type: SoundType = 'default') {
     });
     
     if (type !== 'default' && SOUND_FILES[type]) {
-      soundObj = createAudioPlayer(SOUND_FILES[type]);
+      const source = type === 'completed' ? SOUND_FILES.important : SOUND_FILES[type];
+      soundObj = createAudioPlayer(source);
       soundObj.play();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
