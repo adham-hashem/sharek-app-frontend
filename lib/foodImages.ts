@@ -3,8 +3,10 @@ import { supabase } from './supabase';
 
 export function getFoodImages(donation: Pick<FoodDonation, 'image_url' | 'image_urls'> | null | undefined): string[] {
   if (!donation) return [];
+  const rawUrls = donation.image_urls as unknown;
+  const parsedUrls = typeof rawUrls === 'string' ? (() => { try { return JSON.parse(rawUrls) as unknown; } catch { return []; } })() : rawUrls;
   const urls = [
-    ...(Array.isArray(donation.image_urls) ? donation.image_urls : []),
+    ...(Array.isArray(parsedUrls) ? parsedUrls : []),
     donation.image_url,
   ].filter((url): url is string => Boolean(url));
   return [...new Set(urls)];

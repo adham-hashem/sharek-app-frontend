@@ -771,11 +771,11 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center',
   },
   mealList: {
-    paddingHorizontal: spacing.lg, gap: spacing.md,
+    paddingHorizontal: spacing.lg, gap: spacing.md, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
   },
   mealCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden',
-    width: '100%',
+    width: '48.5%',
     borderWidth: 1.5, borderColor: colors.border,
     shadowColor: colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3,
   },
