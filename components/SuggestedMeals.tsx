@@ -137,7 +137,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
     try {
       if (currentLocation) {
         const { items } = await apiFetch<{ items: NearbyMapItem[] }>(
-          `/v1/map/nearby?latitude=${encodeURIComponent(Number(currentLocation.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(currentLocation.longitude.toFixed(3)))}&radius_km=25`,
+          `/v1/map/nearby?latitude=${encodeURIComponent(Number(currentLocation.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(currentLocation.longitude.toFixed(3)))}&radius_km=50`,
         );
         const requestIds = items.filter((item) => item.item_type === 'request').map((item) => item.item_id);
         if (requestIds.length > 0) {
@@ -409,7 +409,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
       <View style={styles.sectionWrap}>
         {showHeader && (
           <Text style={[typography.heading, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
-            {t('nearbyRequests')}
+            {t('availableMealsNearby')}
           </Text>
         )}
         <View style={styles.emptyState}>
@@ -417,7 +417,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
             <Heart size={40} color={colors.brownMuted} />
           </View>
           <Text style={[typography.caption, { color: colors.brownMuted, marginTop: spacing.xs, fontFamily: `${font}Regular`, textAlign: 'center' }]}>
-            {emptyText || t('noNearbyRequestsDesc')}
+            {emptyText || t('noNearbyFood')}
           </Text>
         </View>
       </View>
@@ -428,7 +428,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
     <View style={styles.sectionWrap}>
       {showHeader && (
         <Text style={[typography.heading, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
-          {t('nearbyRequests')}
+          {t('availableMealsNearby')}
         </Text>
       )}
       <View style={styles.mealList}>

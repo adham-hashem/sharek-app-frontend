@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, ActivityIndicator,
-  TouchableOpacity, Alert, Dimensions, Platform, Image, Modal,
+  TouchableOpacity, Alert, Dimensions, Platform, Image, Modal, TextInput,
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -186,6 +186,9 @@ function NeedyFlow() {
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [activeClaims, setActiveClaims] = useState<FoodDonation[]>([]);
   const [selectedMeal, setSelectedMeal] = useState<MealWithProfile | null>(null);
+  const [requestModal, setRequestModal] = useState(false);
+  const [requestMeals, setRequestMeals] = useState('1');
+  const [requestBusy, setRequestBusy] = useState(false);
 
   const distText = useCallback((dist: number | null) => {
     if (dist === null) return '—';
@@ -223,7 +226,7 @@ function NeedyFlow() {
     let donations: FoodDonation[] = [];
     try {
       const { items } = await apiFetch<{ items: NearbyMapItem[] }>(
-        `/v1/map/nearby?latitude=${encodeURIComponent(Number(location.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(location.longitude.toFixed(3)))}&radius_km=25`,
+        `/v1/map/nearby?latitude=${encodeURIComponent(Number(location.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(location.longitude.toFixed(3)))}&radius_km=50`,
       );
       const foodIds = items.filter((item) => item.item_type === 'food').map((item) => item.item_id);
       if (foodIds.length > 0) {
@@ -376,6 +379,19 @@ function NeedyFlow() {
     });
   };
 
+  const submitMealRequest = async () => {
+    const mealsCount = Math.max(1, Math.min(100, Number.parseInt(requestMeals, 10) || 1));
+    if (!location) { Alert.alert(t('locationError')); return; }
+    setRequestBusy(true);
+    try {
+      await apiPost('/v1/meal-requests', { meals: mealsCount, timing: 'now', latitude: location.latitude, longitude: location.longitude });
+      setRequestModal(false);
+      Alert.alert(t('requestCreated'));
+    } catch {
+      Alert.alert(t('errorGeneric'));
+    } finally { setRequestBusy(false); }
+  };
+
   const openChatForDonation = (donation: FoodDonation) => {
     router.push({
       pathname: '/chat',
@@ -482,9 +498,13 @@ function NeedyFlow() {
           <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
             {t('availableMealsNearby')}
           </Text>
-          <Text style={[typography.caption, { color: colors.brownMuted, fontFamily: `${font}Regular`, marginTop: 2 }]}>
-            {t('needMealSub')}
-          </Text>
+            <Text style={[typography.caption, { color: colors.brownMuted, fontFamily: `${font}Regular`, marginTop: 2 }]}>
+              {t('needMealSub')}
+            </Text>
+            <TouchableOpacity style={styles.requestMealBtn} onPress={() => setRequestModal(true)} disabled={!location}>
+              <Heart size={17} color={colors.white} fill={colors.white} />
+              <Text style={[typography.small, { color: colors.white, fontFamily: `${font}Bold` }]}>{t('requestMealNow')}</Text>
+            </TouchableOpacity>
         </View>
 
         {locating && (
@@ -673,6 +693,15 @@ function NeedyFlow() {
           </View>
         </View>
       </Modal>
+      <Modal visible={requestModal} transparent animationType="slide" onRequestClose={() => setRequestModal(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.detailsModal}>
+          <TouchableOpacity style={styles.modalClose} onPress={() => setRequestModal(false)}><X size={22} color={colors.brown} /></TouchableOpacity>
+          <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold`, textAlign: 'center' }]}>{t('requestMealNow')}</Text>
+          <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular`, textAlign: 'center', marginTop: spacing.sm }]}>{t('searchingDonor')}</Text>
+          <TextInput value={requestMeals} onChangeText={setRequestMeals} keyboardType="number-pad" style={styles.requestInput} placeholder={t('mealsNeeded')} placeholderTextColor={colors.brownMuted} />
+          <TouchableOpacity style={styles.modalClaimBtn} onPress={submitMealRequest} disabled={requestBusy}>{requestBusy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.modalClaimText}>{t('requestMeal')}</Text>}</TouchableOpacity>
+        </View></View>
+      </Modal>
     </View>
   );
 }
@@ -718,6 +747,8 @@ const styles = StyleSheet.create({
   modalDetail: { ...typography.small, color: colors.brown, backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   modalClaimBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.lg },
   modalClaimText: { ...typography.bodyBold, color: colors.white },
+  requestMealBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.coral, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.sm },
+  requestInput: { ...typography.body, color: colors.brown, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg, textAlign: 'center' },
   mealPhotoWrap: {
     position: 'relative',
     backgroundColor: colors.surfaceAlt,

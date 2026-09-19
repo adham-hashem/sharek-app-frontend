@@ -258,7 +258,7 @@ export default function MapScreen() {
     setLoading(true);
     try {
       const { items: nearby } = await apiFetch<{ items: NearbyMapItem[] }>(
-        `/v1/map/nearby?latitude=${encodeURIComponent(mapQueryLocationLat)}&longitude=${encodeURIComponent(mapQueryLocationLng)}&radius_km=25`,
+        `/v1/map/nearby?latitude=${encodeURIComponent(mapQueryLocationLat)}&longitude=${encodeURIComponent(mapQueryLocationLng)}&radius_km=50`,
       );
       const requestIds = nearby.filter((item) => item.item_type === 'request').map((item) => item.item_id);
       const foodIds = nearby.filter((item) => item.item_type === 'food').map((item) => item.item_id);
