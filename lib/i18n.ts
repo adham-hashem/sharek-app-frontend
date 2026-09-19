@@ -70,6 +70,7 @@ const ar: Dict = {
   profile: 'الملف',
 
   requestingMeal: 'أحتاج وجبة',
+  requestMealNow: 'اطلب وجبة الآن',
   donatingFood: 'شارك طعام',
   donatingMoney: 'تبرع بقيمة وجبة',
   shareFood: 'شارك طعام',
@@ -498,6 +499,7 @@ const en: Dict = {
   profile: 'Profile',
 
   requestingMeal: 'I Need a Meal',
+  requestMealNow: 'Request a meal now',
   donatingFood: 'Share Food',
   donatingMoney: 'Donate Meal Value',
   shareFood: 'Share Food',

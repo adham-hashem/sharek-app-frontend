@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   StyleSheet, View, Text, ScrollView, ActivityIndicator,
-  TouchableOpacity, Alert, Dimensions, Platform, Image,
+  TouchableOpacity, Alert, Dimensions, Platform, Image, Modal,
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -185,6 +185,7 @@ function NeedyFlow() {
   const [expiredIds, setExpiredIds] = useState<Set<string>>(new Set());
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [activeClaims, setActiveClaims] = useState<FoodDonation[]>([]);
+  const [selectedMeal, setSelectedMeal] = useState<MealWithProfile | null>(null);
 
   const distText = useCallback((dist: number | null) => {
     if (dist === null) return '—';
@@ -521,7 +522,7 @@ function NeedyFlow() {
               const primaryImage = foodImages[0];
 
               return (
-                <View key={meal.id} style={styles.mealCard}>
+                <TouchableOpacity key={meal.id} style={styles.mealCard} activeOpacity={0.92} onPress={() => setSelectedMeal(meal)}>
                   <View style={styles.mealPhotoWrap}>
                     {primaryImage ? (
                       <Image source={{ uri: primaryImage }} style={styles.mealPhoto} />
@@ -639,7 +640,7 @@ function NeedyFlow() {
                       </TouchableOpacity>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
@@ -658,6 +659,20 @@ function NeedyFlow() {
           </TouchableOpacity>
         )}
       </ScrollView>
+      <Modal visible={!!selectedMeal} transparent animationType="slide" onRequestClose={() => setSelectedMeal(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.detailsModal}>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedMeal(null)}><X size={22} color={colors.brown} /></TouchableOpacity>
+            {selectedMeal && <>
+              {getPrimaryFoodImage(selectedMeal) ? <Image source={{ uri: getPrimaryFoodImage(selectedMeal) as string }} style={styles.detailsImage} /> : <View style={[styles.detailsImage, styles.mealPhotoFallback]}><UtensilsCrossed size={44} color={colors.brownMuted} /></View>}
+              <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold`, marginTop: spacing.md }]}>{selectedMeal.food_name}</Text>
+              <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular`, marginTop: spacing.xs }]}>{selectedMeal.description || t('partnerMeal')}</Text>
+              <View style={styles.modalDetailsRow}><Text style={styles.modalDetail}>{selectedMeal.meals} {t('meals')}</Text><Text style={styles.modalDetail}>{distText(selectedMeal.distance_km)}</Text><Text style={styles.modalDetail}>{t('remainingTime')}: <LiveCountdown iso={selectedMeal.expires_at} lang={language} /></Text></View>
+              <TouchableOpacity style={styles.modalClaimBtn} onPress={() => { const meal = selectedMeal; setSelectedMeal(null); void claimMeal(meal); }} disabled={selectedMeal.user_id === user?.id || claimingId === selectedMeal.id}><Text style={styles.modalClaimText}>{selectedMeal.user_id === user?.id ? t('myPublishedMeal') : t('orderMealBtn')}</Text></TouchableOpacity>
+            </>}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -687,13 +702,22 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center',
   },
   mealList: {
-    paddingHorizontal: spacing.lg, gap: spacing.md,
+    paddingHorizontal: spacing.lg, gap: spacing.md, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
   },
   mealCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden',
+    width: Dimensions.get('window').width >= 900 ? '31.8%' : Dimensions.get('window').width >= 600 ? '48.5%' : '100%',
     borderWidth: 1.5, borderColor: colors.border,
     shadowColor: colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3,
   },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(38, 24, 16, 0.55)', justifyContent: 'flex-end' },
+  detailsModal: { backgroundColor: colors.background, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, minHeight: 360 },
+  modalClose: { alignSelf: 'flex-end', padding: spacing.xs },
+  detailsImage: { width: '100%', height: 190, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
+  modalDetailsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.lg },
+  modalDetail: { ...typography.small, color: colors.brown, backgroundColor: colors.surfaceAlt, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
+  modalClaimBtn: { backgroundColor: colors.primary, borderRadius: radius.md, padding: spacing.md, alignItems: 'center', marginTop: spacing.lg },
+  modalClaimText: { ...typography.bodyBold, color: colors.white },
   mealPhotoWrap: {
     position: 'relative',
     backgroundColor: colors.surfaceAlt,
