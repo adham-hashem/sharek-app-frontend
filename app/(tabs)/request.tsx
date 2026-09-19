@@ -245,6 +245,22 @@ function NeedyFlow() {
       donations = (data ?? []) as FoodDonation[];
     }
 
+    // Keep /request consistent with the home map even when the nearby-items
+    // endpoint or its detail RPC returns no rows. Filter the same live table
+    // locally by distance so a visible map meal is never missing here.
+    if (donations.length === 0) {
+      const { data } = await supabase
+        .from('food_donations')
+        .select('*')
+        .eq('status', 'available')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(100);
+      donations = ((data ?? []) as FoodDonation[]).filter((donation) =>
+        haversineKm(location, { latitude: donation.latitude, longitude: donation.longitude }) <= 50,
+      );
+    }
+
     if (!donations || donations.length === 0) {
       setMeals([]);
       return;
