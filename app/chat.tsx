@@ -546,6 +546,23 @@ export default function ChatScreen() {
 
   const confirmReceived = async () => {
     if (!donationId) return;
+    const execute = async () => {
+      setActionBusy(true);
+      const { error } = await supabase.rpc('confirm_food_received', { p_donation_id: donationId });
+      setActionBusy(false);
+      if (error) {
+        Alert.alert(t('errorGeneric'), error.message);
+        return;
+      }
+      if (effectiveOtherId) {
+        createNotification(user?.id ?? '', 'rating_reminder', language === 'ar' ? `قيّم شريكك ${otherProfile?.full_name ?? ''}` : `Rate your partner ${otherProfile?.full_name ?? ''}`, { food_donation_id: donationId, other_user_id: effectiveOtherId }, language);
+      }
+      loadDonation();
+    };
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`${t('confirmReceived')}\n\n${t('confirmReceivedPrompt')}`)) await execute();
+      return;
+    }
     Alert.alert(
       t('confirmReceived'),
       t('confirmReceivedPrompt'),
@@ -553,25 +570,7 @@ export default function ChatScreen() {
         { text: t('back'), style: 'cancel' },
         {
           text: t('confirmYes'),
-          onPress: async () => {
-            setActionBusy(true);
-            const { error } = await supabase.rpc('confirm_food_received', { p_donation_id: donationId });
-            setActionBusy(false);
-            if (error) {
-              Alert.alert(t('errorGeneric'));
-              return;
-            }
-            if (effectiveOtherId) {
-              createNotification(
-                user?.id ?? '',
-                'rating_reminder',
-                language === 'ar' ? `قيّم شريكك ${otherProfile?.full_name ?? ''}` : `Rate your partner ${otherProfile?.full_name ?? ''}`,
-                { food_donation_id: donationId, other_user_id: effectiveOtherId },
-                language,
-              );
-            }
-            loadDonation();
-          },
+          onPress: () => { void execute(); },
         },
       ],
     );

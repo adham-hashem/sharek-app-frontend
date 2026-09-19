@@ -399,17 +399,19 @@ function NeedyFlow() {
     });
   };
 
-  const confirmReceivedDonation = (donation: FoodDonation) => {
+  const confirmReceivedDonation = async (donation: FoodDonation) => {
+    const confirm = async () => {
+      const { error } = await supabase.rpc('confirm_food_received', { p_donation_id: donation.id });
+      if (error) Alert.alert(t('errorGeneric'), error.message);
+      else await checkActiveClaims();
+    };
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`${t('confirmReceived')}\n\n${t('confirmReceivedPrompt')}`)) await confirm();
+      return;
+    }
     Alert.alert(t('confirmReceived'), t('confirmReceivedPrompt'), [
       { text: t('back'), style: 'cancel' },
-      {
-        text: t('confirmYes'),
-        onPress: async () => {
-          const { error } = await supabase.rpc('confirm_food_received', { p_donation_id: donation.id });
-          if (error) Alert.alert(t('errorGeneric'));
-          else await checkActiveClaims();
-        },
-      },
+      { text: t('confirmYes'), onPress: () => { void confirm(); } },
     ]);
   };
 
