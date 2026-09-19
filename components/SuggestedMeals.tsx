@@ -9,7 +9,7 @@ import {
   Heart, Clock, Navigation,
   CheckCircle2, HandHeart, AlertCircle,
 } from 'lucide-react-native';
-import { supabase, MealRequest, Profile } from '@/lib/supabase';
+import { supabase, MealRequest, FoodDonation, Profile } from '@/lib/supabase';
 import { Coords, haversineKm, ensureLocationPermission, getCurrentLocation } from '@/lib/location';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { apiFetch } from '@/lib/api';
@@ -106,6 +106,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
 
   const [dbRequests, setDbRequests] = useState([] as MealRequest[]);
+  const [dbFood, setDbFood] = useState([] as FoodDonation[]);
   const [dbProfiles, setDbProfiles] = useState(new Map() as Map<string, Profile>);
   const [myOffers, setMyOffers] = useState([] as { id: string; request_id: string; status: string }[]);
   const [expiredIds, setExpiredIds] = useState(new Set() as Set<string>);
@@ -140,6 +141,11 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
           `/v1/map/nearby?latitude=${encodeURIComponent(Number(currentLocation.latitude.toFixed(3)))}&longitude=${encodeURIComponent(Number(currentLocation.longitude.toFixed(3)))}&radius_km=50`,
         );
         const requestIds = items.filter((item) => item.item_type === 'request').map((item) => item.item_id);
+        const foodIds = items.filter((item) => item.item_type === 'food').map((item) => item.item_id);
+        const foodDetails = foodIds.length
+          ? await supabase.rpc('get_nearby_food_details', { p_ids: foodIds })
+          : { data: [], error: null };
+        setDbFood(foodDetails.error ? [] : ((foodDetails.data ?? []) as FoodDonation[]));
         if (requestIds.length > 0) {
           const { data, error } = await supabase.rpc('get_nearby_request_details', { p_ids: requestIds });
           const fallback = items.filter((item) => item.item_type === 'request').map(mapItemToRequest);
@@ -158,6 +164,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         .order('created_at', { ascending: false })
         .limit(100);
       requests = (data ?? []).map((request: Omit<MealRequest, 'expires_at'>) => withRequestExpiry(request));
+      setDbFood([]);
     }
 
     if (requests && requests.length > 0) {
@@ -223,6 +230,11 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
       })
       .sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999));
   }, [dbRequests, dbProfiles, myOffers, location, expiredIds]);
+
+  const nearbyFood = useMemo(() => dbFood
+    .filter(food => food.status === 'available' && new Date(food.expires_at).getTime() > Date.now())
+    .map(food => ({ ...food, distance: location ? haversineKm(location, { latitude: food.latitude, longitude: food.longitude }) : null }))
+    .sort((a, b) => (a.distance ?? 9999) - (b.distance ?? 9999)), [dbFood, location]);
 
   const handleExpire = useCallback((id: string) => {
     setExpiredIds(prev => {
@@ -404,7 +416,7 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
     );
   };
 
-  if (nearbyRequests.length === 0) {
+  if (nearbyRequests.length === 0 && nearbyFood.length === 0) {
     return (
       <View style={styles.sectionWrap}>
         {showHeader && (
@@ -430,6 +442,20 @@ export function SuggestedMeals({ location, showHeader = true, emptyText }: Sugge
         <Text style={[typography.heading, { color: colors.brown, marginBottom: spacing.sm, fontFamily: `${font}Bold` }]}>
           {t('availableMealsNearby')}
         </Text>
+      )}
+      {nearbyFood.length > 0 && (
+        <View style={styles.foodList}>
+          {nearbyFood.map((food) => (
+            <View key={food.id} style={styles.foodCard}>
+              {food.image_url ? <Image source={{ uri: food.image_url }} style={styles.foodImage} /> : <View style={styles.foodImagePlaceholder}><Heart size={24} color={colors.green} /></View>}
+              <View style={styles.foodInfo}>
+                <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>{food.food_name}</Text>
+                <Text style={[typography.small, { color: colors.greenDark, fontFamily: `${font}SemiBold` }]}>📍 {food.distance === null ? '—' : food.distance < 1 ? `${Math.round(food.distance * 1000)} ${language === 'ar' ? 'م' : 'm'}` : `${food.distance.toFixed(1)} ${t('km')}`}</Text>
+                <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>{food.meals} {t('meal')}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
       )}
       <View style={styles.mealList}>
         {nearbyRequests.map((req, index) => renderRequestCard(req, index))}
@@ -473,6 +499,11 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: spacing.lg },
   emptyIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center' },
   mealList: { gap: spacing.md },
+  foodList: { gap: spacing.sm, marginBottom: spacing.md },
+  foodCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border, padding: spacing.sm, gap: spacing.sm },
+  foodImage: { width: 68, height: 68, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  foodImagePlaceholder: { width: 68, height: 68, borderRadius: radius.md, backgroundColor: colors.greenBg, alignItems: 'center', justifyContent: 'center' },
+  foodInfo: { flex: 1, gap: 3 },
   mealCard: {
     backgroundColor: colors.surface, borderRadius: radius.lg, overflow: 'hidden',
     borderWidth: 1.5, borderColor: colors.border,
