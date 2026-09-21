@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  StyleSheet, View, Text, TouchableOpacity, Image, Animated, Easing, Dimensions,
+  StyleSheet, View, Text, TouchableOpacity, Image, Animated, Easing, Dimensions, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -19,13 +19,13 @@ export default function WelcomeScreen() {
         toValue: 1,
         duration: 800,
         easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(riseAnim, {
         toValue: 0,
         duration: 800,
         easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start();
   }, [fadeAnim, riseAnim]);

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, ScrollView,
-  TextInput, Image, Platform, Alert,
+  TextInput, Image, Platform, Alert, Switch,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '@/lib/auth';
@@ -894,6 +894,10 @@ function RequestsList({ onBack }: { onBack: () => void }) {
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   const rtl = language === 'ar';
   const knownRequestIds = useRef<Set<string>>(new Set());
+  const [helperEnabled, setHelperEnabled] = useState(false);
+  const [helperRadius, setHelperRadius] = useState<1 | 3 | 5 | 10>(5);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [savingPreferences, setSavingPreferences] = useState(false);
 
   const load = useCallback(async () => {
     if (!user || !location) {
@@ -904,7 +908,7 @@ function RequestsList({ onBack }: { onBack: () => void }) {
     let data: any[] | null = null;
     try {
       const { items } = await apiFetch<{ items: NearbyRequestMapItem[] }>(
-        `/v1/map/nearby?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}&radius_km=25`,
+        `/v1/map/nearby?latitude=${encodeURIComponent(location.latitude)}&longitude=${encodeURIComponent(location.longitude)}&radius_km=${helperRadius}`,
       );
       const requestIds = items.filter(item => item.item_type === 'request').map(item => item.item_id);
       if (requestIds.length > 0) {
@@ -952,7 +956,19 @@ function RequestsList({ onBack }: { onBack: () => void }) {
 
     setRequests(enriched);
     setLoading(false);
-  }, [user, location, settings]);
+  }, [user, location, settings, helperRadius]);
+
+  const saveHelperPreferences = async (enabled = helperEnabled, radiusValue = helperRadius) => {
+    if (!location) { Alert.alert(t('locationError')); return; }
+    setSavingPreferences(true);
+    const { error } = await supabase.rpc('upsert_helper_preferences', {
+      p_receives: enabled, p_available: enabled, p_radius_km: radiusValue,
+      p_latitude: location.latitude, p_longitude: location.longitude,
+    });
+    setSavingPreferences(false);
+    if (error) { Alert.alert(t('errorGeneric'), error.message); return; }
+    setHelperEnabled(enabled); setHelperRadius(radiusValue); void load();
+  };
 
   // Check if donor already has an active match
   const checkActiveMatch = useCallback(async () => {
@@ -995,6 +1011,12 @@ function RequestsList({ onBack }: { onBack: () => void }) {
         const c = await getCurrentLocation();
         if (!cancelled && c) setLocation(c);
       }
+      const { data: preference } = await supabase.from('helper_preferences').select('*').eq('user_id', user?.id ?? '').maybeSingle();
+      if (!cancelled && preference) {
+        setHelperEnabled(Boolean(preference.receives_nearby_requests && preference.is_available));
+        setHelperRadius((preference.radius_km ?? 5) as 1 | 3 | 5 | 10);
+      }
+      if (!cancelled) setPreferencesReady(true);
       if (cancelled) return;
       void checkActiveMatch();
       void load();
@@ -1046,6 +1068,24 @@ function RequestsList({ onBack }: { onBack: () => void }) {
     return () => { alive = false; cleanup?.(); };
   }, [activeMatch]);
 
+  // Keep the helper location fresh only while nearby-request reception is enabled.
+  useEffect(() => {
+    if (!helperEnabled || !preferencesReady) return;
+    let cleanup: (() => void) | undefined;
+    let lastSentAt = 0;
+    void watchLocation(coords => {
+      setLocation(coords);
+      const now = Date.now();
+      if (now - lastSentAt < 15000) return;
+      lastSentAt = now;
+      void supabase.rpc('upsert_helper_preferences', {
+        p_receives: true, p_available: true, p_radius_km: helperRadius,
+        p_latitude: coords.latitude, p_longitude: coords.longitude,
+      });
+    }).then(fn => { cleanup = fn; });
+    return () => cleanup?.();
+  }, [helperEnabled, helperRadius, preferencesReady]);
+
   const accept = async (req: RequestWithProfile) => {
     if (!user) return;
     setActionId(req.id);
@@ -1089,6 +1129,24 @@ function RequestsList({ onBack }: { onBack: () => void }) {
     if (dist < 1) return `${Math.round(dist * 1000)} m`;
     return `${dist.toFixed(1)} ${t('km')}`;
   };
+
+  if (!preferencesReady) {
+    return <View style={{ padding: spacing.lg }}><BackBar onPress={onBack} /><ActivityIndicator color={colors.primary} /></View>;
+  }
+
+  if (!helperEnabled) {
+    return <View style={{ flex: 1, padding: spacing.lg }}><BackBar onPress={onBack} />
+      <View style={styles.helperPreferenceCard}>
+        <Bell size={44} color={colors.primary} />
+        <Text style={[typography.title, { color: colors.brown, fontFamily: `${font}Bold`, textAlign: 'center' }]}>{t('nearbyRequestSettings')}</Text>
+        <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular`, textAlign: 'center' }]}>{t('nearbyRequestConsent')}</Text>
+        <View style={styles.preferenceSwitchRow}><Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>{t('receiveNearbyRequests')}</Text><Switch value={helperEnabled} onValueChange={value => { if (value) void saveHelperPreferences(true, helperRadius); }} /></View>
+        <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>{t('requestRange')}</Text>
+        <View style={styles.radiusChoices}>{([1, 3, 5, 10] as const).map(value => <TouchableOpacity key={value} onPress={() => setHelperRadius(value)} style={[styles.radiusChoice, helperRadius === value && styles.radiusChoiceActive]}><Text style={{ color: helperRadius === value ? colors.white : colors.brown, fontFamily: `${font}Bold` }}>{value} {t('km')}</Text></TouchableOpacity>)}</View>
+        {savingPreferences && <ActivityIndicator color={colors.primary} />}
+      </View>
+    </View>;
+  }
 
   // --- Matched detail view ---
   if (activeMatch && matchRequest) {
@@ -1542,6 +1600,11 @@ function ClaimedList({ onBack }: { onBack: () => void }) {
 }
 
 const styles = StyleSheet.create({
+  helperPreferenceCard: { marginTop: spacing.xl, padding: spacing.xl, borderRadius: radius.xl, backgroundColor: colors.surface, alignItems: 'center', gap: spacing.md, borderWidth: 1, borderColor: colors.border },
+  preferenceSwitchRow: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
+  radiusChoices: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', justifyContent: 'center' },
+  radiusChoice: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
+  radiusChoiceActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   container: { flex: 1, backgroundColor: colors.background },
   headerCard: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
   headerIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },

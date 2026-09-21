@@ -57,7 +57,7 @@ export default function NotificationsScreen() {
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle()
-        .then(({ data }) => { settingsRef.current = data; });
+        .then(({ data }) => { settingsRef.current = data ?? { notifications_enabled: true, request_sound_enabled: true, vibration_enabled: true }; });
     }
   }, [user]);
 
@@ -88,7 +88,7 @@ export default function NotificationsScreen() {
           if (prev.some(n => n.id === newNotif.id)) return prev;
           return [newNotif, ...prev];
         });
-        playNotificationFeedback(newNotif.type, settingsRef.current);
+        playNotificationFeedback(newNotif.type, settingsRef.current ?? { notifications_enabled: true, request_sound_enabled: true, vibration_enabled: true });
       })
       .on('postgres_changes', {
         event: 'UPDATE',

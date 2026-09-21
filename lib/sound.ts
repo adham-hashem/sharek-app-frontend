@@ -30,6 +30,7 @@ const SOUND_FILES = {
   message: require('../assets/sounds/message.wav'),
   completed: require('../assets/sounds/completed.wav'),
   important: require('../assets/sounds/important-action.mp3'),
+  error: require('../assets/sounds/completed.wav'),
 };
 
 export type SoundType = keyof typeof SOUND_FILES | 'default';

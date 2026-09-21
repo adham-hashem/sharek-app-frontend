@@ -10,15 +10,15 @@ import {
   Navigation, Star, Bell, Search, PackageCheck,
   MessageCircle, ChevronLeft, XCircle, AlertCircle,
 } from 'lucide-react-native';
-import { ensureLocationPermission, getCurrentLocation, haversineKm, Coords } from '@/lib/location';
-import { supabase, FoodDonation, Profile } from '@/lib/supabase';
+import { ensureLocationPermission, getCurrentLocation, haversineKm, Coords, watchLocation } from '@/lib/location';
+import { supabase, FoodDonation, Profile, MealRequest, Match } from '@/lib/supabase';
 import { SuggestedMeals } from '@/components/SuggestedMeals';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { router } from 'expo-router';
 import { apiFetch, apiPost } from '@/lib/api';
 import { createNotification } from '@/lib/notifications';
 import { getFoodImages, getPrimaryFoodImage, resolveFoodImages } from '@/lib/foodImages';
-import { playInteractionSound } from '@/lib/sound';
+import { playInteractionSound, playNotificationSound, vibrateDevice } from '@/lib/sound';
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
 type NearbyMapItem = {
@@ -33,7 +33,7 @@ type NearbyMapItem = {
   created_at?: string;
 };
 
-type NeedyStage = 'browsing' | 'claimed';
+type NeedyStage = 'browsing' | 'claimed' | 'searching' | 'matched' | 'no_helper';
 
 interface MealWithProfile extends FoodDonation {
   donor_profile?: Profile;
@@ -189,7 +189,95 @@ function NeedyFlow() {
   const [selectedMeal, setSelectedMeal] = useState<MealWithProfile | null>(null);
   const [requestModal, setRequestModal] = useState(false);
   const [requestMeals, setRequestMeals] = useState('1');
+  const [requestTiming, setRequestTiming] = useState<'now' | 'later'>('now');
   const [requestBusy, setRequestBusy] = useState(false);
+  const [activeRequest, setActiveRequest] = useState<MealRequest | null>(null);
+  const [activeMatch, setActiveMatch] = useState<Match | null>(null);
+  const [helperProfile, setHelperProfile] = useState<Profile | null>(null);
+  const [searchSeconds, setSearchSeconds] = useState(30);
+  const transitionSoundPlayed = useRef<string | null>(null);
+
+  // Restore an unfinished request without replaying transition sounds after a reload.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from('meal_requests').select('*').eq('user_id', user.id)
+        .in('status', ['open', 'matched']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!alive || !data) return;
+      const request = data as MealRequest;
+      setActiveRequest(request);
+      transitionSoundPlayed.current = request.status;
+      if (request.status === 'matched') {
+        const { data: match } = await supabase.from('matches').select('*').eq('request_id', request.id).maybeSingle();
+        if (alive && match) {
+          const typedMatch = match as Match;
+          setActiveMatch(typedMatch);
+          const { data: helper } = await supabase.from('public_profiles').select('*').eq('id', typedMatch.helper_id).maybeSingle();
+          if (alive) setHelperProfile((helper as Profile | null) ?? null);
+          setStage('matched');
+        }
+      } else {
+        setSearchSeconds(Math.max(1, 30 - Math.floor((Date.now() - new Date(request.created_at).getTime()) / 1000)));
+        setStage('searching');
+      }
+    })();
+    return () => { alive = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!activeRequest || !user) return;
+    const applyRequestUpdate = async (request: MealRequest) => {
+      setActiveRequest(request);
+      if (request.status !== 'matched') return;
+      const { data: match } = await supabase.from('matches').select('*').eq('request_id', request.id).maybeSingle();
+      if (!match) return;
+      const typedMatch = match as Match;
+      setActiveMatch(typedMatch);
+      const { data: helper } = await supabase.from('public_profiles').select('*').eq('id', typedMatch.helper_id).maybeSingle();
+      setHelperProfile((helper as Profile | null) ?? null);
+      setStage('matched');
+      if (transitionSoundPlayed.current !== `matched:${request.id}`) {
+        transitionSoundPlayed.current = `matched:${request.id}`;
+        void playNotificationSound('accepted');
+        vibrateDevice(true);
+      }
+    };
+    const channel = supabase.channel(`needy_request_${activeRequest.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'meal_requests', filter: `id=eq.${activeRequest.id}` }, payload => { void applyRequestUpdate(payload.new as MealRequest); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `request_id=eq.${activeRequest.id}` }, payload => {
+        const match = payload.new as Match;
+        if (match?.id) setActiveMatch(match);
+        void applyRequestUpdate({ ...activeRequest, status: 'matched' });
+      }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [activeRequest?.id, user]);
+
+  useEffect(() => {
+    if (stage !== 'searching' || !activeRequest) return;
+    if (searchSeconds <= 0) {
+      void apiPost(`/v1/meal-requests/${activeRequest.id}/cancel`).catch(() => undefined);
+      setStage('no_helper');
+      if (transitionSoundPlayed.current !== `failed:${activeRequest.id}`) {
+        transitionSoundPlayed.current = `failed:${activeRequest.id}`;
+        void playNotificationSound('error');
+        vibrateDevice(true);
+      }
+      return;
+    }
+    const timer = setTimeout(() => setSearchSeconds(value => value - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [stage, searchSeconds, activeRequest]);
+
+  useEffect(() => {
+    if (!activeMatch || stage !== 'matched') return;
+    let cleanup: (() => void) | undefined;
+    void watchLocation(coords => {
+      setLocation(coords);
+      void apiPost(`/v1/matches/${activeMatch.id}/requester-location`, coords).catch(() => undefined);
+    }).then(fn => { cleanup = fn; });
+    return () => cleanup?.();
+  }, [activeMatch?.id, stage]);
 
   const distText = useCallback((dist: number | null) => {
     if (dist === null) return '—';
@@ -404,13 +492,60 @@ function NeedyFlow() {
     if (!location) { Alert.alert(t('locationError')); return; }
     setRequestBusy(true);
     try {
-      await apiPost('/v1/meal-requests', { meals: mealsCount, timing: 'now', latitude: location.latitude, longitude: location.longitude });
+      const created = await apiPost<MealRequest>('/v1/meal-requests', { meals: mealsCount, timing: requestTiming, latitude: location.latitude, longitude: location.longitude });
+      setActiveRequest(created);
+      setSearchSeconds(30);
+      transitionSoundPlayed.current = `open:${created.id}`;
+      setStage('searching');
       setRequestModal(false);
-      Alert.alert(t('requestCreated'));
     } catch {
       Alert.alert(t('errorGeneric'));
     } finally { setRequestBusy(false); }
   };
+
+  const retryMealRequest = () => {
+    setActiveRequest(null); setActiveMatch(null); setHelperProfile(null);
+    setSearchSeconds(30); setStage('browsing'); setRequestModal(true);
+  };
+
+  const confirmMatchReceived = async () => {
+    if (!activeMatch) return;
+    setRequestBusy(true);
+    try {
+      await apiPost(`/v1/matches/${activeMatch.id}/confirm-receipt`);
+      setActiveRequest(null); setActiveMatch(null); setHelperProfile(null); setStage('browsing');
+    } catch (error: any) { Alert.alert(t('errorGeneric'), error?.message); }
+    finally { setRequestBusy(false); }
+  };
+
+  if (stage === 'searching' && activeRequest) {
+    return <View style={styles.searchState}><ActivityIndicator size="large" color={colors.primary} />
+      <Text style={[typography.title, styles.searchTitle, { fontFamily: `${font}Bold` }]}>{t('searchingHelper')}</Text>
+      <View style={styles.searchTimer}><Text style={[typography.heading, { color: colors.primary, fontFamily: `${font}Bold` }]}>{searchSeconds}</Text></View>
+      <Text style={[typography.body, styles.searchHint, { fontFamily: `${font}Regular` }]}>{activeRequest.meals} {t('meals')} · {activeRequest.timing === 'now' ? t('now') : t('later')}</Text>
+      <TouchableOpacity style={styles.cancelSearchBtn} onPress={async () => { await apiPost(`/v1/meal-requests/${activeRequest.id}/cancel`).catch(() => undefined); setActiveRequest(null); setStage('browsing'); }}><Text style={[typography.bodyBold, { color: colors.error, fontFamily: `${font}Bold` }]}>{t('cancelRequest')}</Text></TouchableOpacity>
+    </View>;
+  }
+
+  if (stage === 'no_helper') {
+    return <View style={styles.searchState}><AlertCircle size={64} color={colors.warning} />
+      <Text style={[typography.title, styles.searchTitle, { fontFamily: `${font}Bold` }]}>{t('noHelperFound')}</Text>
+      <Text style={[typography.body, styles.searchHint, { fontFamily: `${font}Regular` }]}>{t('noHelperFoundDesc')}</Text>
+      <TouchableOpacity style={styles.modalClaimBtn} onPress={retryMealRequest}><Text style={styles.modalClaimText}>{t('retryRequest')}</Text></TouchableOpacity>
+    </View>;
+  }
+
+  if (stage === 'matched' && activeRequest && activeMatch) {
+    const helperDistance = location && activeMatch.helper_lat != null && activeMatch.helper_lng != null ? haversineKm(location, { latitude: activeMatch.helper_lat, longitude: activeMatch.helper_lng }) : null;
+    return <ScrollView style={styles.container} contentContainerStyle={styles.matchedState}>
+      <CheckCircle2 size={68} color={colors.green} />
+      <Text style={[typography.title, styles.searchTitle, { fontFamily: `${font}Bold` }]}>{t('requestAcceptedHeart')}</Text>
+      <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>{helperProfile?.full_name || t('sharekHelper')}</Text>
+      <Text style={[typography.body, styles.searchHint, { fontFamily: `${font}Regular` }]}>{t('waitingForPickup')}{helperDistance == null ? '' : ` · ${distText(helperDistance)}`}</Text>
+      <TouchableOpacity style={styles.modalClaimBtn} onPress={() => router.push({ pathname: '/chat', params: { mealRequestId: activeRequest.id, otherUserId: activeMatch.helper_id } })}><Text style={styles.modalClaimText}>{t('openChat')}</Text></TouchableOpacity>
+      {activeMatch.delivery_status === 'delivered' && <TouchableOpacity style={styles.receiveBtn} disabled={requestBusy} onPress={confirmMatchReceived}><Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>{t('confirmReceived')}</Text></TouchableOpacity>}
+    </ScrollView>;
+  }
 
   const openChatForDonation = (donation: FoodDonation) => {
     router.push({
@@ -563,6 +698,9 @@ function NeedyFlow() {
             <Text style={[typography.caption, { color: colors.brownMuted, marginTop: spacing.xs, fontFamily: `${font}Regular`, textAlign: 'center' }]}>
               {t('noMealsAvailableDesc')}
             </Text>
+            <TouchableOpacity style={styles.modalClaimBtn} onPress={() => setRequestModal(true)} disabled={!location}>
+              <Text style={styles.modalClaimText}>{t('needAMeal')}</Text>
+            </TouchableOpacity>
           </View>
         ) : (
         <View style={styles.mealList}>
@@ -739,6 +877,13 @@ function NeedyFlow() {
           <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold`, textAlign: 'center' }]}>{t('requestMealNow')}</Text>
           <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}Regular`, textAlign: 'center', marginTop: spacing.sm }]}>{t('searchingDonor')}</Text>
           <TextInput value={requestMeals} onChangeText={setRequestMeals} keyboardType="number-pad" style={styles.requestInput} placeholder={t('mealsNeeded')} placeholderTextColor={colors.brownMuted} />
+          <View style={styles.timingRow}>
+            {(['now', 'later'] as const).map(value => (
+              <TouchableOpacity key={value} style={[styles.timingOption, requestTiming === value && styles.timingOptionActive]} onPress={() => setRequestTiming(value)}>
+                <Text style={[typography.bodyBold, { color: requestTiming === value ? colors.white : colors.brown, fontFamily: `${font}Bold` }]}>{t(value)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <TouchableOpacity style={styles.modalClaimBtn} onPress={submitMealRequest} disabled={requestBusy}>{requestBusy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.modalClaimText}>{t('requestMeal')}</Text>}</TouchableOpacity>
         </View></View>
       </Modal>
@@ -790,6 +935,16 @@ const styles = StyleSheet.create({
   modalClaimText: { ...typography.bodyBold, color: colors.white },
   requestMealBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.coral, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.sm },
   requestInput: { ...typography.body, color: colors.brown, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg, textAlign: 'center' },
+  timingRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  timingOption: { flex: 1, alignItems: 'center', padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  timingOptionActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  searchState: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  matchedState: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  searchTitle: { color: colors.brown, textAlign: 'center', marginTop: spacing.lg },
+  searchHint: { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.sm },
+  searchTimer: { width: 76, height: 76, borderRadius: 38, borderWidth: 5, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: spacing.lg },
+  cancelSearchBtn: { marginTop: spacing.xl, padding: spacing.md },
+  receiveBtn: { backgroundColor: colors.green, borderRadius: radius.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, marginTop: spacing.md },
   mealPhotoWrap: {
     position: 'relative',
     backgroundColor: colors.surfaceAlt,
