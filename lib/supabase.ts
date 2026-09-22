@@ -192,6 +192,7 @@ export interface FoodClaim {
 
 export interface Message {
   id: string;
+  conversation_id?: string | null;
   food_donation_id: string | null;
   meal_request_id: string | null;
   sender_id: string;

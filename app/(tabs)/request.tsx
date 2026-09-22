@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import { apiFetch, apiPost } from '@/lib/api';
 import { createNotification } from '@/lib/notifications';
 import { getFoodImages, getPrimaryFoodImage, resolveFoodImages } from '@/lib/foodImages';
-import { playInteractionSound, playNotificationSound, vibrateDevice } from '@/lib/sound';
+import { playInteractionSound, playNotificationSound, playTimerTick, vibrateDevice } from '@/lib/sound';
 
 const AVATAR_COLORS = ['#F7564C', '#1F7A45', '#F9A825', '#6B4F3A', '#2E6FB0', '#8E44AD'];
 type NearbyMapItem = {
@@ -237,7 +237,7 @@ function NeedyFlow() {
       const { data: helper } = await supabase.from('public_profiles').select('*').eq('id', typedMatch.helper_id).maybeSingle();
       setHelperProfile((helper as Profile | null) ?? null);
       setStage('matched');
-      if (transitionSoundPlayed.current !== `matched:${request.id}`) {
+      if (transitionSoundPlayed.current !== `matched:${request.id}` && transitionSoundPlayed.current !== request.status) {
         transitionSoundPlayed.current = `matched:${request.id}`;
         void playNotificationSound('accepted');
         vibrateDevice(true);
@@ -265,6 +265,7 @@ function NeedyFlow() {
       }
       return;
     }
+    void playTimerTick();
     const timer = setTimeout(() => setSearchSeconds(value => value - 1), 1000);
     return () => clearTimeout(timer);
   }, [stage, searchSeconds, activeRequest]);

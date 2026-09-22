@@ -21,6 +21,8 @@ Notifications?.setNotificationHandler({
 
 let soundObj: AudioPlayer | null = null;
 let interactionSoundObj: AudioPlayer | null = null;
+let timerTickSoundObj: AudioPlayer | null = null;
+let transitionSoundObj: AudioPlayer | null = null;
 
 const SOUND_FILES = {
   interaction: require('../assets/sounds/interaction.mp3'),
@@ -30,7 +32,9 @@ const SOUND_FILES = {
   message: require('../assets/sounds/message.wav'),
   completed: require('../assets/sounds/completed.wav'),
   important: require('../assets/sounds/important-action.mp3'),
-  error: require('../assets/sounds/completed.wav'),
+  timerTick: require('../assets/sounds/izafi-old_clock_tick_metallic-445181.mp3'),
+  acceptedBonus: require('../assets/sounds/universfield-video-game-bonus-323603.mp3'),
+  error: require('../assets/sounds/universfield-error-notification-129258.mp3'),
 };
 
 export type SoundType = keyof typeof SOUND_FILES | 'default';
@@ -50,13 +54,36 @@ export async function playInteractionSound() {
   }
 }
 
-export async function playNotificationSound(type: SoundType = 'default') {
-  if (Platform.OS === 'web') {
-    // Basic web fallback or ignore
-    return;
-  }
-  
+export async function playTimerTick() {
   try {
+    if (!timerTickSoundObj) {
+      timerTickSoundObj = createAudioPlayer(SOUND_FILES.timerTick);
+      timerTickSoundObj.volume = 0.2;
+    } else {
+      await timerTickSoundObj.seekTo(0);
+    }
+    timerTickSoundObj.play();
+  } catch {
+    // Timer audio is optional feedback and must never interrupt matching.
+  }
+}
+
+export async function playNotificationSound(type: SoundType = 'default') {
+  try {
+    if (type === 'accepted' || type === 'error') {
+      if (timerTickSoundObj) {
+        timerTickSoundObj.pause();
+        await timerTickSoundObj.seekTo(0);
+      }
+      transitionSoundObj?.release();
+      transitionSoundObj = createAudioPlayer(type === 'accepted' ? SOUND_FILES.acceptedBonus : SOUND_FILES.error);
+      transitionSoundObj.volume = 0.8;
+      transitionSoundObj.play();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(type === 'accepted' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
+      }
+      return;
+    }
     if (soundObj) {
       soundObj.release();
       soundObj = null;

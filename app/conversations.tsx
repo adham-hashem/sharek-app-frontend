@@ -7,18 +7,20 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
-import { supabase, FoodDonation, Profile } from '@/lib/supabase';
+import { supabase, Profile } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import {
   ChevronLeft, MessageCircle, UtensilsCrossed, Send,
 } from 'lucide-react-native';
 import { AchievementBadgeMini } from '@/components/AchievementBadge';
-import { getPrimaryFoodImage } from '@/lib/foodImages';
 
 interface ConversationRow {
-  donation: FoodDonation;
-  otherUser: Profile;
-  unreadCount: number;
-  lastMessageAt: string | null;
+  id: string;
+  other_user_id: string;
+  other_user: Profile | null;
+  unread_count: number;
+  last_message_at: string;
+  last_message: { body: string; created_at: string; food_donation_id: string | null; meal_request_id: string | null } | null;
 }
 
 export default function ConversationsScreen() {
@@ -31,95 +33,8 @@ export default function ConversationsScreen() {
   const load = useCallback(async () => {
     if (!user) return;
 
-    const { data: ownClaims } = await supabase
-      .from('food_claims')
-      .select('*, food_donation:food_donations(*)')
-      .eq('claimer_id', user.id)
-      .order('created_at', { ascending: false });
-
-    const { data: ownDonations } = await supabase
-      .from('food_donations')
-      .select('id')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    const donationIds = (ownDonations ?? []).map((donation) => donation.id);
-    const { data: donorClaims } = donationIds.length
-      ? await supabase
-        .from('food_claims')
-        .select('*, food_donation:food_donations(*)')
-        .in('food_donation_id', donationIds)
-        .order('created_at', { ascending: false })
-      : { data: [] };
-
-    const claims = [...(ownClaims ?? []), ...(donorClaims ?? [])]
-      .filter((claim, index, all) => all.findIndex((candidate) => candidate.id === claim.id) === index)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    if (!claims || claims.length === 0) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    const seen = new Set<string>();
-    const convos: ConversationRow[] = [];
-
-    for (const claim of claims) {
-      const donation = claim.food_donation as unknown as FoodDonation;
-      if (!donation) continue;
-      const otherId = claim.claimer_id === user.id ? donation.user_id : claim.claimer_id;
-      const key = `${donation.id}_${otherId}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const { data: profile } = await supabase
-        .from('public_profiles')
-        .select('*')
-        .eq('id', otherId)
-        .maybeSingle();
-
-      const { count: unread } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('food_donation_id', donation.id)
-        .eq('recipient_id', user.id)
-        .is('read_at', null);
-
-      const { data: lastMsg } = await supabase
-        .from('messages')
-        .select('created_at')
-        .eq('food_donation_id', donation.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      // A profile can be unavailable briefly (deleted account, RLS, or a
-      // partially-created profile). Conversations must remain usable anyway.
-      const safeProfile = (profile as Profile | null) ?? ({
-        id: otherId,
-        full_name: language === 'ar' ? 'مستخدم SHARek' : 'SHARek user',
-        email: '', role: 'skipped', language, phone: '', country: '', currency: 'USD',
-        avatar_url: null, rating: 0, meals_helped: 0, meals_received: 0,
-        contributor_level: 0, is_verified: false, verified_at: null, is_admin: false,
-        religion: null, created_at: '', updated_at: '', mode: null,
-      } as Profile);
-
-      convos.push({
-        donation,
-        otherUser: safeProfile,
-        unreadCount: unread ?? 0,
-        lastMessageAt: lastMsg?.created_at ?? claim.created_at,
-      });
-    }
-
-    convos.sort((a, b) => {
-      const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-      const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
-      return tb - ta;
-    });
-
-    setRows(convos);
+    const result = await apiFetch<{ items: ConversationRow[] }>('/v1/conversations').catch(() => ({ items: [] }));
+    setRows(result.items);
     setLoading(false);
   }, [user]);
 
@@ -129,6 +44,8 @@ export default function ConversationsScreen() {
       .channel('conversations_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'food_claims' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, load)
       .subscribe();
     return () => { supabase.removeChannel(sub); };
   }, [load]);
@@ -171,51 +88,40 @@ export default function ConversationsScreen() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }} showsVerticalScrollIndicator={false}>
           {rows.map((row) => (
             <TouchableOpacity
-              key={`${row.donation.id}_${row.otherUser.id}`}
+              key={row.id}
               style={styles.convoCard}
               onPress={() => router.push({
                 pathname: '/chat',
-                params: { donationId: row.donation.id, otherUserId: row.otherUser.id },
+                params: { conversationId: row.id, otherUserId: row.other_user_id },
               })}
               activeOpacity={0.7}
             >
-              <View style={styles.convoAvatar}>
-                <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>
-                  {row.otherUser.full_name?.charAt(0).toUpperCase() ?? '?'}
-                </Text>
-              </View>
+              {row.other_user?.avatar_url ? <Image source={{ uri: row.other_user.avatar_url }} style={styles.convoAvatar} /> : <View style={styles.convoAvatar}><Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>{row.other_user?.full_name?.charAt(0).toUpperCase() ?? '?'}</Text></View>}
 
               <View style={{ flex: 1 }}>
                 <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]} numberOfLines={1}>
-                  {row.otherUser.full_name ?? '...'}
+                  {row.other_user?.full_name ?? (language === 'ar' ? 'مستخدم SHARek' : 'SHARek user')}
                 </Text>
-                {(row.otherUser.contributor_level ?? 0) > 0 && (
+                {(row.other_user?.contributor_level ?? 0) > 0 && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                    <AchievementBadgeMini level={row.otherUser.contributor_level ?? 0} size={13} />
+                    <AchievementBadgeMini level={row.other_user?.contributor_level ?? 0} size={13} />
                   </View>
                 )}
                 <View style={styles.convoFoodRow}>
-                  {getPrimaryFoodImage(row.donation) ? (
-                    <Image source={{ uri: getPrimaryFoodImage(row.donation)! }} style={styles.convoFoodImg} />
-                  ) : (
-                    <View style={[styles.convoFoodImg, { backgroundColor: colors.greenBg, justifyContent: 'center', alignItems: 'center' }]}>
-                      <UtensilsCrossed size={12} color={colors.green} />
-                    </View>
-                  )}
                   <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]} numberOfLines={1}>
-                    {row.donation.food_name}
+                    {row.last_message?.body ?? t('noMessages')}
                   </Text>
                 </View>
               </View>
 
               <View style={styles.convoRight}>
                 <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                  {fmtTime(row.lastMessageAt)}
+                  {fmtTime(row.last_message?.created_at ?? row.last_message_at)}
                 </Text>
-                {row.unreadCount > 0 ? (
+                {row.unread_count > 0 ? (
                   <View style={styles.unreadBadge}>
                     <Text style={[typography.micro, { color: colors.white, fontFamily: `${font}Bold` }]}>
-                      {row.unreadCount}
+                      {row.unread_count}
                     </Text>
                   </View>
                 ) : (

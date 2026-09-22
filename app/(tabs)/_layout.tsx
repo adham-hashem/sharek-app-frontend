@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Heart, HandHeart, Menu } from 'lucide-react-native';
+import { Home, Heart, HandHeart, Menu, Globe2 } from 'lucide-react-native';
 import { colors } from '@/lib/theme';
 import { useAuth } from '@/lib/auth';
 import { Platform, Dimensions } from 'react-native';
@@ -10,7 +10,10 @@ const isSmallPhone = SCREEN_WIDTH < 360;
 const isWeb = Platform.OS === 'web';
 
 export default function TabLayout() {
-  const { t, language, session } = useAuth();
+  const { t, language, session, profile } = useAuth();
+  const isDonor = profile?.role === 'donor' || profile?.mode === 'donor';
+  const isSmallPhone = SCREEN_WIDTH < 360;
+  const isWeb = Platform.OS === 'web';
 
   if (!session) {
     return <Redirect href="/(auth)/welcome" />;
@@ -19,6 +22,7 @@ export default function TabLayout() {
   const labelSize = isSmallPhone ? 10 : 11;
   const iconSize = isSmallPhone ? 20 : 23;
   const barHeight = isWeb ? 62 : isSmallPhone ? 62 : 66;
+  const tabCount = isDonor ? 5 : 4;
 
   return (
     <Tabs
@@ -36,6 +40,7 @@ export default function TabLayout() {
           paddingBottom: 6,
           paddingTop: 6,
           paddingHorizontal: 4,
+          ...(SCREEN_WIDTH < 390 ? { height: barHeight + 4, paddingHorizontal: 0 } : {}),
           position: 'absolute',
           left: 0,
           right: 0,
@@ -61,6 +66,7 @@ export default function TabLayout() {
         tabBarItemStyle: {
           paddingVertical: 4,
           paddingHorizontal: 2,
+          maxWidth: SCREEN_WIDTH / tabCount,
         },
       }}
     >
@@ -83,6 +89,14 @@ export default function TabLayout() {
         options={{
           title: t('donate'),
           tabBarIcon: ({ color }) => <HandHeart size={iconSize} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          href: isDonor ? undefined : null,
+          title: t('sharekCommunity'),
+          tabBarIcon: ({ color }) => <Globe2 size={iconSize} color={color} />,
         }}
       />
       <Tabs.Screen

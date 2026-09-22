@@ -14,7 +14,7 @@ import { supabase, Message, FoodDonation, Profile, FoodDonationStatus, Match } f
 import {
   ChevronLeft, Send, UtensilsCrossed, MessageCircle,
   CheckCircle2, MapPin, Navigation, Clock, Package,
-  LocateFixed, Star,
+  LocateFixed, Star, Trash2,
 } from 'lucide-react-native';
 import { ensureLocationPermission, getCurrentLocation, haversineKm, Coords } from '@/lib/location';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
@@ -118,7 +118,8 @@ window.centerOn = function(lat, lng, zoom) {
 
 export default function ChatScreen() {
   const { t, language, user, profile } = useAuth();
-  const params = useLocalSearchParams<{ donationId?: string; mealRequestId?: string; matchId?: string; otherUserId: string }>();
+  const params = useLocalSearchParams<{ conversationId?: string; donationId?: string; mealRequestId?: string; matchId?: string; otherUserId: string }>();
+  const conversationId = params.conversationId;
   const donationId = params.donationId;
   const mealRequestId = params.mealRequestId;
   const matchId = params.matchId;
@@ -183,10 +184,11 @@ export default function ChatScreen() {
   }, []);
 
   const loadMessages = useCallback(async () => {
-    if (!donationId && !mealRequestId) return;
-    const scope = donationId ? 'food' : 'request';
-    const id = donationId ?? mealRequestId;
-    const { items } = await apiFetch<{ items: Message[] }>(`/v1/chat/${scope}/${id}`).catch(() => ({ items: [] as Message[] }));
+    if (!conversationId && !donationId && !mealRequestId) return;
+    const path = conversationId && effectiveOtherId
+      ? `/v1/conversations/${effectiveOtherId}/messages?conversation_id=${encodeURIComponent(conversationId)}${donationId ? `&food_donation_id=${encodeURIComponent(donationId)}` : ''}${mealRequestId ? `&meal_request_id=${encodeURIComponent(mealRequestId)}` : ''}`
+      : `/v1/chat/${donationId ? 'food' : 'request'}/${donationId ?? mealRequestId}`;
+    const { items } = await apiFetch<{ items: Message[] }>(path).catch(() => ({ items: [] as Message[] }));
     if (items) {
       setMessages(items);
       const unread = items.filter(
@@ -195,9 +197,12 @@ export default function ChatScreen() {
       await Promise.all(unread.map((m) =>
         supabase.rpc('mark_message_read', { p_message_id: m.id })
       ));
+      if (conversationId && unread.length > 0) {
+        setMessages(current => current.map(message => unread.some(item => item.id === message.id) ? { ...message, read_at: new Date().toISOString() } : message));
+      }
     }
     setLoading(false);
-  }, [donationId, mealRequestId, user]);
+  }, [conversationId, donationId, mealRequestId, effectiveOtherId, user]);
 
   const loadDonation = useCallback(async () => {
     if (!donationId) return;
@@ -283,19 +288,28 @@ export default function ChatScreen() {
   }, [matchId, user]);
 
   useEffect(() => {
-    if (!donationId && !mealRequestId) return;
-    const channelId = donationId ?? mealRequestId!;
+    if (!conversationId && !donationId && !mealRequestId) return;
+    const channelId = conversationId ?? donationId ?? mealRequestId!;
     const channel = supabase
       .channel(`chat_${channelId}`)
       .on('postgres_changes', {
-        event: 'INSERT',
+        event: '*',
         schema: 'public',
         table: 'messages',
-        filter: donationId
+        filter: conversationId ? `conversation_id=eq.${conversationId}` : donationId
           ? `food_donation_id=eq.${donationId}`
           : `meal_request_id=eq.${mealRequestId}`,
       }, async (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const deleted = payload.old as Pick<Message, 'id'>;
+          setMessages(prev => prev.filter(message => message.id !== deleted.id));
+          return;
+        }
         const newMsg = payload.new as Message;
+        if (payload.eventType === 'UPDATE') {
+          setMessages(prev => prev.map(message => message.id === newMsg.id ? newMsg : message));
+          return;
+        }
         setMessages(prev => {
           if (prev.some(m => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
@@ -311,7 +325,7 @@ export default function ChatScreen() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [donationId, mealRequestId, user]);
+  }, [conversationId, donationId, mealRequestId, user]);
 
   useEffect(() => {
     if (scrollRef.current && messages.length > 0) {
@@ -499,15 +513,12 @@ export default function ChatScreen() {
   const sendMessage = async () => {
     const body = input.trim();
     if (!body || !user || !effectiveOtherId) return;
-    if (!donationId && !mealRequestId) return;
+    if (!conversationId && !donationId && !mealRequestId) return;
     setSending(true);
     setInput('');
-    const scope = donationId ? 'food' : 'request';
-    const id = donationId ?? mealRequestId;
-    const { error } = await apiPost<any>(`/v1/chat/${scope}/${id}/messages`, {
-      recipient_id: effectiveOtherId,
-      body,
-    }).then(() => ({ error: null })).catch((err) => ({ error: err }));
+    const path = conversationId ? `/v1/conversations/${effectiveOtherId}/messages` : `/v1/chat/${donationId ? 'food' : 'request'}/${donationId ?? mealRequestId}/messages`;
+    const { error } = await apiPost<any>(path, conversationId ? { body, food_donation_id: donationId, meal_request_id: mealRequestId } : { recipient_id: effectiveOtherId, body })
+      .then(() => ({ error: null })).catch((err) => ({ error: err }));
     setSending(false);
     if (error) {
       setInput(body);
@@ -524,6 +535,22 @@ export default function ChatScreen() {
       },
       language,
     );
+  };
+
+  const deleteOwnMessage = (message: Message) => {
+    if (message.sender_id !== user?.id) return;
+    const remove = async () => {
+      const { error } = await supabase.from('messages').delete().eq('id', message.id).eq('sender_id', user.id);
+      if (error) Alert.alert(t('errorGeneric'));
+    };
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(t('deleteMessageConfirm'))) void remove();
+      return;
+    }
+    Alert.alert(t('deleteMessage'), t('deleteMessageConfirm'), [
+      { text: t('back'), style: 'cancel' },
+      { text: t('deleteMessage'), style: 'destructive', onPress: () => { void remove(); } },
+    ]);
   };
 
   const markReadyForPickup = async () => {
@@ -1012,9 +1039,11 @@ export default function ChatScreen() {
               messages.map((msg) => {
                 const isMine = msg.sender_id === user?.id;
                 return (
-                  <View
+                  <TouchableOpacity
                     key={msg.id}
                     style={[styles.msgBubble, isMine ? styles.msgMine : styles.msgTheirs]}
+                    onLongPress={() => deleteOwnMessage(msg)}
+                    delayLongPress={450}
                   >
                     <Text style={[
                       typography.body,
@@ -1028,7 +1057,8 @@ export default function ChatScreen() {
                     ]}>
                       {fmtTime(msg.created_at)}
                     </Text>
-                  </View>
+                    {isMine && <Trash2 size={11} color="rgba(255,255,255,0.65)" style={{ alignSelf: 'flex-end', marginTop: 2 }} />}
+                  </TouchableOpacity>
                 );
               })
             )}

@@ -42,7 +42,9 @@ export default function MenuScreen() {
   const [editPhone, setEditPhone] = useState('');
   const [editCountry, setEditCountry] = useState('');
   const [unread, setUnread] = useState(0);
+  const [donorStats, setDonorStats] = useState({ donated_meals: 0, people_helped: 0 });
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
+  const donorMode = profile?.role === 'donor' || profile?.mode === 'donor';
 
   useEffect(() => {
     if (!user) return;
@@ -61,6 +63,12 @@ export default function MenuScreen() {
       .subscribe();
     return () => { supabase.removeChannel(sub); };
   }, [user]);
+
+  useEffect(() => {
+    if (!user || !donorMode) return;
+    supabase.from('donor_statistics').select('donated_meals,people_helped').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => { if (data) setDonorStats({ donated_meals: Number(data.donated_meals ?? 0), people_helped: Number(data.people_helped ?? 0) }); });
+  }, [user, donorMode]);
 
   const pickRole = async (role: UserRole) => {
     setBusy(true);
@@ -213,19 +221,19 @@ export default function MenuScreen() {
         <View style={styles.statCard}>
           <HandHeart size={20} color={colors.green} />
           <Text style={[typography.huge, { color: colors.brown, fontSize: 22, fontFamily: `${font}ExtraBold` }]}>
-            {profile?.meals_helped ?? 0}
+            {donorMode ? donorStats.donated_meals : (profile?.meals_helped ?? 0)}
           </Text>
           <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', fontFamily: `${font}Regular` }]}>
-            {t('mealsHelped')}
+            {donorMode ? t('totalDonatedMeals') : t('mealsHelped')}
           </Text>
         </View>
         <View style={styles.statCard}>
           <UtensilsCrossed size={20} color={colors.coral} />
           <Text style={[typography.huge, { color: colors.brown, fontSize: 22, fontFamily: `${font}ExtraBold` }]}>
-            {profile?.meals_received ?? 0}
+            {donorMode ? donorStats.people_helped : (profile?.meals_received ?? 0)}
           </Text>
           <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', fontFamily: `${font}Regular` }]}>
-            {t('mealsReceived')}
+            {donorMode ? t('peopleHelped') : t('mealsReceived')}
           </Text>
         </View>
       </View>
