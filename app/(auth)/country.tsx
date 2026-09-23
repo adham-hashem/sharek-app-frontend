@@ -7,12 +7,12 @@ import { useAuth } from '@/lib/auth';
 import { COUNTRIES, CountryInfo, getCountryByCode } from '@/lib/countries';
 import { colors, radius, spacing } from '@/lib/theme';
 
-// Dialing codes are presentation data; country selection still uses the existing ISO codes.
 const dialingCodes: Record<string, string> = {
   SA: '+966', AE: '+971', EG: '+20', KW: '+965', QA: '+974', BH: '+973',
   OM: '+968', JO: '+962', IQ: '+964', LB: '+961', SY: '+963', YE: '+967',
   PS: '+970', SD: '+249', LY: '+218', TN: '+216', DZ: '+213', MA: '+212',
   MR: '+222', SO: '+252', DJ: '+253', KM: '+269',
+  GB: '+44', US: '+1', CA: '+1', AU: '+61',
 };
 
 export default function CountryScreen() {
@@ -28,13 +28,9 @@ export default function CountryScreen() {
     const query = search.trim().toLocaleLowerCase();
     if (!query) return COUNTRIES;
     return COUNTRIES.filter(country =>
-      country.nameAr.includes(query) ||
-      country.nameEn.toLocaleLowerCase().includes(query) ||
-      country.code.toLocaleLowerCase().includes(query) ||
-      country.currency.toLocaleLowerCase().includes(query) ||
-      dialingCodes[country.code]?.includes(query)
+      (rtl ? country.nameAr : country.nameEn).toLocaleLowerCase().includes(query)
     );
-  }, [search]);
+  }, [search, rtl]);
 
   const confirm = async () => {
     if (!selectedCountry || busy) return;

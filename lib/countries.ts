@@ -32,6 +32,10 @@ export const COUNTRIES: CountryInfo[] = [
   { code: 'SO', nameAr: 'الصومال', nameEn: 'Somalia', currency: 'SOS', currencySymbolAr: 'ش.س', currencySymbolEn: 'SOS', flag: '🇸🇴', defaultMealPrice: 15000 },
   { code: 'DJ', nameAr: 'جيبوتي', nameEn: 'Djibouti', currency: 'DJF', currencySymbolAr: 'ف.ج', currencySymbolEn: 'DJF', flag: '🇩🇯', defaultMealPrice: 2000 },
   { code: 'KM', nameAr: 'جزر القمر', nameEn: 'Comoros', currency: 'KMF', currencySymbolAr: 'ف.ق', currencySymbolEn: 'KMF', flag: '🇰🇲', defaultMealPrice: 3000 },
+  { code: 'GB', nameAr: 'المملكة المتحدة', nameEn: 'United Kingdom', currency: 'GBP', currencySymbolAr: '£', currencySymbolEn: 'GBP', flag: '🇬🇧', defaultMealPrice: 5 },
+  { code: 'US', nameAr: 'الولايات المتحدة', nameEn: 'United States', currency: 'USD', currencySymbolAr: '$', currencySymbolEn: 'USD', flag: '🇺🇸', defaultMealPrice: 5 },
+  { code: 'CA', nameAr: 'كندا', nameEn: 'Canada', currency: 'CAD', currencySymbolAr: 'C$', currencySymbolEn: 'CAD', flag: '🇨🇦', defaultMealPrice: 7 },
+  { code: 'AU', nameAr: 'أستراليا', nameEn: 'Australia', currency: 'AUD', currencySymbolAr: 'A$', currencySymbolEn: 'AUD', flag: '🇦🇺', defaultMealPrice: 8 },
 ];
 
 const countryByCode = new Map<string, CountryInfo>(COUNTRIES.map(c => [c.code, c]));
