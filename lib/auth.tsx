@@ -24,6 +24,7 @@ interface AuthContextType {
   signOut: () => Promise<{ error: string | null }>;
   updateRole: (role: UserRole) => Promise<{ error: string | null }>;
   updateMode: (mode: UserMode) => Promise<{ error: string | null }>;
+  updateCountry: (country: string, currency: string) => Promise<{ error: string | null }>;
   updateProfile: (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'currency' | 'avatar_url'>>) => Promise<{ error: string | null }>;
   updateSettings: (fields: Partial<Pick<UserSettings, 'notifications_enabled' | 'request_sound_enabled' | 'vibration_enabled' | 'location_enabled'>>) => Promise<{ error: string | null }>;
   deleteAccount: () => Promise<{ error: string | null }>;
@@ -264,6 +265,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null };
   }, [session, loadProfile]);
 
+  const updateCountry = useCallback(async (country: string, currency: string) => {
+    if (!session?.user) return { error: 'authError' };
+    const { error } = await supabase.rpc('update_own_profile_country', {
+      p_country: country,
+      p_currency: currency,
+    });
+    if (error) return { error: 'errorGeneric' };
+    await loadProfile(session.user.id);
+    return { error: null };
+  }, [session, loadProfile]);
+
   const updateProfile = useCallback(async (fields: Partial<Pick<Profile, 'full_name' | 'phone' | 'country' | 'currency' | 'avatar_url'>>) => {
     if (!session?.user) return { error: 'authError' };
     const { error } = await supabase
@@ -326,6 +338,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signOut,
     updateRole,
     updateMode,
+    updateCountry,
     updateProfile,
     updateSettings,
     deleteAccount,

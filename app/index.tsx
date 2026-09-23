@@ -18,5 +18,9 @@ export default function Index() {
     return <Redirect href={'/(auth)/mode' as never} />;
   }
 
+  if (!profile.country?.trim()) {
+    return <Redirect href={'/(auth)/country' as never} />;
+  }
+
   return <Redirect href="/(tabs)" />;
 }

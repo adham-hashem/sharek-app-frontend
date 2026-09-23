@@ -1,203 +1,158 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Image, ActivityIndicator, Keyboard } from 'react-native';
-import { useAuth } from '@/lib/auth';
-import { colors, spacing, radius, typography } from '@/lib/theme';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Check, ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
+import { useAuth } from '@/lib/auth';
 import { COUNTRIES, CountryInfo, getCountryByCode } from '@/lib/countries';
-import { supabase } from '@/lib/supabase';
-import { Search, Check, X } from 'lucide-react-native';
-import { ScreenHeader } from '@/components/ScreenHeader';
+import { colors, radius, spacing } from '@/lib/theme';
+
+// Dialing codes are presentation data; country selection still uses the existing ISO codes.
+const dialingCodes: Record<string, string> = {
+  SA: '+966', AE: '+971', EG: '+20', KW: '+965', QA: '+974', BH: '+973',
+  OM: '+968', JO: '+962', IQ: '+964', LB: '+961', SY: '+963', YE: '+967',
+  PS: '+970', SD: '+249', LY: '+218', TN: '+216', DZ: '+213', MA: '+212',
+  MR: '+222', SO: '+252', DJ: '+253', KM: '+269',
+};
 
 export default function CountryScreen() {
-  const { t, language, profile, rtl } = useAuth();
+  const { t, language, profile, updateCountry } = useAuth();
+  const rtl = language === 'ar';
+  const font = rtl ? 'Cairo-' : 'Inter-';
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(profile?.country ?? null);
   const [busy, setBusy] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-  const font = language === 'ar' ? 'Cairo-' : 'Inter-';
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return [];
-    return COUNTRIES.filter(c =>
-      c.nameAr.includes(q) ||
-      c.nameEn.toLowerCase().includes(q) ||
-      c.currency.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q)
-    ).slice(0, 8);
-  }, [search]);
-
   const selectedCountry = selected ? getCountryByCode(selected) : null;
 
-  const pickCountry = (code: string) => {
-    setSelected(code);
-    setSearch('');
-    Keyboard.dismiss();
-    setFocused(false);
-  };
+  const filtered = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return COUNTRIES;
+    return COUNTRIES.filter(country =>
+      country.nameAr.includes(query) ||
+      country.nameEn.toLocaleLowerCase().includes(query) ||
+      country.code.toLocaleLowerCase().includes(query) ||
+      country.currency.toLocaleLowerCase().includes(query) ||
+      dialingCodes[country.code]?.includes(query)
+    );
+  }, [search]);
 
   const confirm = async () => {
-    if (!selected) return;
+    if (!selectedCountry || busy) return;
     setBusy(true);
-    const country = getCountryByCode(selected);
-    if (country) {
-      await supabase
-        .from('profiles')
-        .update({ country: country.code, currency: country.currency })
-        .eq('id', profile?.id ?? '');
-    }
+    const result = await updateCountry(selectedCountry.code, selectedCountry.currency);
     setBusy(false);
+    if (result.error) {
+      alert(t(result.error));
+      return;
+    }
     router.replace('/');
   };
 
+  const renderCountry = ({ item }: { item: CountryInfo }) => {
+    const active = item.code === selected;
+    return (
+      <TouchableOpacity
+        style={[styles.row, { flexDirection: rtl ? 'row-reverse' : 'row' }, active && styles.rowSelected]}
+        onPress={() => { setSelected(item.code); Keyboard.dismiss(); }}
+        activeOpacity={0.75}
+        accessibilityRole="radio"
+        accessibilityState={{ selected: active }}
+      >
+        <Text style={styles.flag}>{item.flag}</Text>
+        <Text numberOfLines={1} style={[styles.countryName, { fontFamily: `${font}Medium`, textAlign: rtl ? 'right' : 'left' }, active && styles.countryNameSelected]}>
+          {rtl ? item.nameAr : item.nameEn}
+        </Text>
+        <Text style={styles.dialCode}>{dialingCodes[item.code]}</Text>
+        {active && <Check size={17} strokeWidth={2.2} color={colors.primary} />}
+      </TouchableOpacity>
+    );
+  };
+
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title="" style={{ paddingHorizontal: 0, paddingTop: spacing.md, paddingBottom: spacing.sm }} />
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={[styles.topBar, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}
+          accessibilityRole="button"
+          accessibilityLabel={rtl ? 'رجوع' : 'Back'}
+        >
+          {rtl ? <ChevronRight size={21} color={colors.brown} /> : <ChevronLeft size={21} color={colors.brown} />}
+        </TouchableOpacity>
+      </View>
 
-        <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
+      <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
+      <Text style={[styles.title, { fontFamily: `${font}Bold` }]}>{t('selectCountry')}</Text>
+      <Text style={[styles.subtitle, { fontFamily: `${font}Regular` }]}>{t('selectCountrySub')}</Text>
 
-        <Text style={[typography.title, { color: colors.brown, textAlign: 'center', fontFamily: `${font}Bold` }]}>
-          {t('selectCountry')}
-        </Text>
-        <Text style={[typography.caption, { color: colors.brownMuted, textAlign: 'center', marginBottom: spacing.lg, marginTop: spacing.xs, fontFamily: `${font}Regular` }]}>
-          {t('selectCountrySub')}
-        </Text>
-
-        <View style={styles.searchContainer}>
-          <View style={[styles.searchWrap, focused && styles.searchWrapFocused]}>
-            <Search size={20} color={colors.brownMuted} />
-            <TextInput
-              ref={inputRef}
-              style={[styles.searchInput, { fontFamily: `${font}Regular` }]}
-              placeholder={t('searchCountry')}
-              value={search}
-              onChangeText={setSearch}
-              placeholderTextColor={colors.brownMuted}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => { setSearch(''); inputRef.current?.focus(); }} hitSlop={8}>
-                <X size={18} color={colors.brownMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {search.trim().length > 0 && (
-            <View style={styles.dropdown}>
-              <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
-                {filtered.length === 0 ? (
-                  <Text style={[typography.body, { color: colors.brownMuted, textAlign: 'center', paddingVertical: spacing.md, fontFamily: `${font}Regular` }]}>
-                    {t('noResults')}
-                  </Text>
-                ) : (
-                  filtered.map((c) => (
-                    <TouchableOpacity
-                      key={c.code}
-                      style={[styles.dropdownItem, selected === c.code && styles.dropdownItemActive]}
-                      onPress={() => pickCountry(c.code)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.flag}>{c.flag}</Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[typography.body, { color: colors.brown, fontFamily: `${font}SemiBold` }]}>
-                          {language === 'ar' ? c.nameAr : c.nameEn}
-                        </Text>
-                        <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                          {c.code} · {c.currency}
-                        </Text>
-                      </View>
-                      {selected === c.code && (
-                        <Check size={18} color={colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                  ))
-                )}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-
-        {selectedCountry && search.trim().length === 0 && (
-          <View style={styles.selectedChip}>
-            <Text style={styles.flag}>{selectedCountry.flag}</Text>
-            <Text style={[typography.body, { color: colors.brown, fontFamily: `${font}SemiBold` }]}>
-              {language === 'ar' ? selectedCountry.nameAr : selectedCountry.nameEn}
-            </Text>
-            <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-              {selectedCountry.currency}
-            </Text>
-            <TouchableOpacity onPress={() => { setSelected(null); inputRef.current?.focus(); }} hitSlop={8}>
-              <X size={16} color={colors.brownMuted} />
-            </TouchableOpacity>
-          </View>
+      <View style={[styles.searchWrap, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+        <Search size={18} color={colors.brownMuted} />
+        <TextInput
+          style={[styles.searchInput, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}
+          placeholder={t('searchCountry')}
+          placeholderTextColor={colors.brownMuted}
+          value={search}
+          onChangeText={setSearch}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+          accessibilityLabel={t('searchCountry')}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={8} accessibilityRole="button" accessibilityLabel={rtl ? 'مسح البحث' : 'Clear search'}>
+            <X size={17} color={colors.brownMuted} />
+          </TouchableOpacity>
         )}
-      </ScrollView>
+      </View>
+
+      <FlatList
+        data={filtered}
+        keyExtractor={item => item.code}
+        renderItem={renderCountry}
+        keyboardShouldPersistTaps="handled"
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={<Text style={[styles.empty, { fontFamily: `${font}Regular` }]}>{t('noResults')}</Text>}
+      />
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.confirmBtn, !selected && { opacity: 0.5 }]}
+          style={[styles.confirmButton, !selectedCountry && styles.confirmDisabled]}
           onPress={confirm}
-          disabled={!selected || busy}
+          disabled={!selectedCountry || busy}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !selectedCountry || busy }}
         >
-          {busy ? <ActivityIndicator color={colors.white} /> : (
-            <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>
-              {t('confirm')}
-            </Text>
-          )}
+          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={[styles.confirmText, { fontFamily: `${font}Bold` }]}>{t('confirm')}</Text>}
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
-  logo: { width: 120, height: 120, alignSelf: 'center', marginBottom: spacing.md },
-  searchContainer: { position: 'relative', marginBottom: spacing.md },
-  searchWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.surfaceAlt, borderWidth: 1.5, borderColor: colors.border,
-    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md,
-  },
-  searchWrapFocused: {
-    borderColor: colors.primary,
-  },
-  searchInput: { ...typography.body, flex: 1, color: colors.brown, padding: 0 },
-  dropdown: {
-    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-    backgroundColor: colors.surface, borderRadius: radius.md,
-    borderWidth: 1.5, borderColor: colors.border,
-    maxHeight: 280,
-    shadowColor: colors.shadowStrong, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 8,
-  },
-  dropdownScroll: { maxHeight: 280 },
-  dropdownItem: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  dropdownItemActive: {
-    backgroundColor: colors.surfaceAlt,
-  },
-  flag: { fontSize: 22 },
-  selectedChip: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.surface, borderRadius: radius.pill,
-    borderWidth: 1.5, borderColor: colors.primary,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  footer: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
-  confirmBtn: {
-    backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.md,
-    alignItems: 'center',
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 4,
-  },
+  container: { flex: 1, backgroundColor: colors.white },
+  topBar: { height: 40, paddingHorizontal: spacing.md, alignItems: 'center' },
+  backButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
+  logo: { width: 104, height: 68, alignSelf: 'center', marginTop: 2 },
+  title: { fontSize: 21, lineHeight: 32, color: colors.brown, textAlign: 'center', marginTop: 2 },
+  subtitle: { fontSize: 12, lineHeight: 20, color: colors.brownMuted, textAlign: 'center', marginBottom: spacing.md, paddingHorizontal: spacing.lg },
+  searchWrap: { height: 44, alignItems: 'center', gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  searchInput: { flex: 1, fontSize: 13, color: colors.brown, paddingVertical: 0 },
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm, flexGrow: 1 },
+  row: { minHeight: 56, alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.sm, borderRadius: radius.sm },
+  rowSelected: { backgroundColor: colors.surfaceAlt },
+  flag: { fontSize: 25, lineHeight: 32 },
+  countryName: { flex: 1, fontSize: 14, color: colors.brown },
+  countryNameSelected: { color: colors.primaryDark },
+  dialCode: { fontSize: 12, color: colors.brownMuted, minWidth: 38, textAlign: 'center', writingDirection: 'ltr' },
+  separator: { height: 1, marginHorizontal: spacing.sm, backgroundColor: colors.borderLight },
+  empty: { textAlign: 'center', color: colors.brownMuted, marginTop: spacing.lg },
+  footer: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight, backgroundColor: colors.white },
+  confirmButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.primary },
+  confirmDisabled: { opacity: 0.45 },
+  confirmText: { fontSize: 15, color: colors.white },
 });

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, BackHandler } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
@@ -12,16 +13,17 @@ const roles: Array<{
   color: string;
   bg: string;
 }> = [
-  { role: 'needer', icon: <Heart size={32} color={colors.coral} />, color: colors.coral, bg: colors.errorBg },
-  { role: 'donor', icon: <HandHeart size={32} color={colors.green} />, color: colors.green, bg: colors.greenBg },
-  { role: 'charity', icon: <Building2 size={32} color={colors.primary} />, color: colors.primary, bg: colors.surfaceAlt },
-  { role: 'organization', icon: <Building size={32} color={colors.brownLight} />, color: colors.brownLight, bg: colors.surfaceMuted },
-  { role: 'restaurant', icon: <UtensilsCrossed size={32} color={colors.goldenDark} />, color: colors.goldenDark, bg: colors.warningBg },
-  { role: 'hotel', icon: <Hotel size={32} color={colors.brownLight} />, color: colors.brownLight, bg: colors.surfaceMuted },
+  { role: 'needer', icon: <Heart size={30} strokeWidth={1.8} color={colors.coral} />, color: colors.coral, bg: colors.errorBg },
+  { role: 'donor', icon: <HandHeart size={30} strokeWidth={1.8} color={colors.green} />, color: colors.green, bg: colors.greenBg },
+  { role: 'charity', icon: <Building2 size={30} strokeWidth={1.8} color={colors.primary} />, color: colors.primary, bg: colors.surfaceAlt },
+  { role: 'organization', icon: <Building size={30} strokeWidth={1.8} color={colors.brownLight} />, color: colors.brownLight, bg: colors.surfaceMuted },
+  { role: 'restaurant', icon: <UtensilsCrossed size={30} strokeWidth={1.8} color={colors.goldenDark} />, color: colors.goldenDark, bg: colors.warningBg },
+  { role: 'hotel', icon: <Hotel size={30} strokeWidth={1.8} color={colors.brownLight} />, color: colors.brownLight, bg: colors.surfaceMuted },
 ];
 
 export default function RoleScreen() {
   const { updateRole, updateMode, t, language } = useAuth();
+  const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   const [selected, setSelected] = useState<UserRole | null>(null);
   const [selectedMode, setSelectedMode] = useState<UserMode>('donor');
   const [busy, setBusy] = useState(false);
@@ -57,39 +59,40 @@ export default function RoleScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
-      <View style={styles.logoFrame}>
-        <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
-      </View>
-      <Text style={styles.title}>{t('selectRole')}</Text>
-      <Text style={styles.sub}>{t('selectRoleSub')}</Text>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <Image source={require('../../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
+      <Text style={[styles.title, { fontFamily: `${font}Bold` }]}>{t('selectRole')}</Text>
+      <Text style={[styles.sub, { fontFamily: `${font}Regular` }]}>{t('selectRoleSub')}</Text>
 
-      <View style={styles.grid}>
-        {roles.map(({ role, icon, color, bg }) => (
+      <View style={[styles.grid, { flexDirection: language === 'ar' ? 'row-reverse' : 'row' }]}>
+        {roles.map(({ role, icon, bg }) => (
           <TouchableOpacity
             key={role}
-            style={[styles.roleCard, selected === role && { borderColor: color, borderWidth: 2.5 }]}
+            style={[styles.roleCard, selected === role && styles.roleCardSelected]}
             onPress={() => setSelected(role)}
             activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: selected === role }}
           >
             <View style={[styles.roleIcon, { backgroundColor: bg }]}>{icon}</View>
-            <Text style={[styles.roleName, selected === role && { color }]}>{t(`role${role.charAt(0).toUpperCase() + role.slice(1)}`)}</Text>
-            <Text style={styles.roleDesc}>{t(`role${role.charAt(0).toUpperCase() + role.slice(1)}Desc`)}</Text>
+            <Text style={[styles.roleName, { fontFamily: `${font}Bold` }, selected === role && styles.roleNameSelected]}>{t(`role${role.charAt(0).toUpperCase() + role.slice(1)}`)}</Text>
+            <Text style={[styles.roleDesc, { fontFamily: `${font}Regular` }]}>{t(`role${role.charAt(0).toUpperCase() + role.slice(1)}Desc`)}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {selectedNeedsApproval && (
         <View style={styles.approvalBox}>
-          <Text style={styles.approvalTitle}>
+          <Text style={[styles.approvalTitle, { fontFamily: `${font}Bold` }]}>
             {language === 'ar' ? 'اختر طريقة استخدامك للتطبيق' : 'Choose how you will use SHARek'}
           </Text>
-          <Text style={styles.approvalDesc}>
+          <Text style={[styles.approvalDesc, { fontFamily: `${font}Regular` }]}>
             {language === 'ar'
               ? 'يمكنك البدء فورًا كمحتاج أو كشريك/متبرع، ولا تحتاج إلى انتظار موافقة.'
               : 'You can start immediately as a needer or partner/donor. No approval is required.'}
           </Text>
-          <View style={styles.modeRow}>
+          <View style={[styles.modeRow, { flexDirection: language === 'ar' ? 'row-reverse' : 'row' }]}>
             {(['needer', 'donor'] as UserMode[]).map((mode) => (
               <TouchableOpacity
                 key={mode}
@@ -109,61 +112,52 @@ export default function RoleScreen() {
       {selected && (
         <TouchableOpacity style={styles.confirmBtn} onPress={confirm} disabled={busy} activeOpacity={0.8}>
           {busy ? <ActivityIndicator color={colors.white} /> : (
-            <Text style={styles.confirmText}>
+            <Text style={[styles.confirmText, { fontFamily: `${font}Bold` }]}>
               {language === 'ar' ? 'متابعة إلى التطبيق' : 'Continue to SHARek'}
             </Text>
           )}
         </TouchableOpacity>
       )}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxl },
-  logoFrame: {
-    width: 72, height: 72, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt,
-    justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: spacing.md,
-    borderWidth: 2, borderColor: colors.borderLight,
-    shadowColor: colors.shadowStrong, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
-  },
-  logo: { width: 52, height: 52 },
-  title: { ...typography.title, color: colors.brown, textAlign: 'center' },
-  sub: { ...typography.caption, color: colors.brownMuted, textAlign: 'center', marginBottom: spacing.xl, marginTop: spacing.xs },
-  pendingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xl },
-  pendingIcon: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  scroll: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.lg, flexGrow: 1 },
+  logo: { width: 112, height: 73, alignSelf: 'center', marginBottom: spacing.sm },
+  title: { fontSize: 22, lineHeight: 34, color: colors.brown, textAlign: 'center' },
+  sub: { ...typography.caption, color: colors.brownMuted, textAlign: 'center', marginBottom: spacing.md, marginTop: 2 },
+  grid: { flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   roleCard: {
-    width: '47%',
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+    width: '48.5%', minHeight: 126,
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    paddingVertical: 10, paddingHorizontal: spacing.sm,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.border,
-    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: colors.borderLight,
   },
-  roleIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm },
-  roleName: { ...typography.bodyBold, color: colors.brown, textAlign: 'center' },
-  roleDesc: { ...typography.small, color: colors.brownMuted, textAlign: 'center', marginTop: 2 },
+  roleCardSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceAlt },
+  roleIcon: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginBottom: 5 },
+  roleName: { fontSize: 14, lineHeight: 22, color: colors.brown, textAlign: 'center' },
+  roleNameSelected: { color: colors.primaryDark },
+  roleDesc: { fontSize: 11, lineHeight: 17, color: colors.brownMuted, textAlign: 'center', marginTop: 1 },
   approvalBox: {
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
-    borderWidth: 1.5, borderColor: colors.primary, marginTop: spacing.lg,
+    backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing.md,
+    borderWidth: 1, borderColor: colors.borderLight, marginTop: spacing.md,
   },
   approvalTitle: { ...typography.bodyBold, color: colors.brown, textAlign: 'center' },
   approvalDesc: { ...typography.small, color: colors.brownMuted, textAlign: 'center', marginTop: spacing.xs },
   modeRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   modeChip: {
-    flex: 1, alignItems: 'center', borderRadius: radius.pill, paddingVertical: spacing.sm,
-    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surfaceAlt,
+    flex: 1, alignItems: 'center', borderRadius: radius.md, paddingVertical: spacing.sm,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
   },
   modeChipText: { ...typography.small, color: colors.brown },
   confirmBtn: {
-    backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.md,
-    alignItems: 'center', marginTop: spacing.sm,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 4,
+    backgroundColor: colors.primary, minHeight: 48, justifyContent: 'center', borderRadius: radius.md,
+    alignItems: 'center', marginTop: spacing.md,
   },
   confirmText: { ...typography.bodyBold, color: colors.white },
 });

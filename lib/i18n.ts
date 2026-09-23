@@ -15,7 +15,7 @@ const ar: Dict = {
 
   selectCountry: 'اختر الدولة',
   selectCountrySub: 'اختر دولتك لإظهار العملة الصحيحة',
-  searchCountry: 'ابحث عن دولة...',
+  searchCountry: 'البحث عن دولة',
 
   emailConfirmationRequired: 'تم إنشاء الحساب بنجاح! يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.',
   roleRequiresApproval: 'هذا الدور يتطلب موافقة الإدارة. الرجاء التواصل مع الدعم أو اختيار دور مختلف.',
@@ -58,6 +58,7 @@ const ar: Dict = {
   roleNeederDesc: 'أحتاج إلى وجبات',
   roleDonorDesc: 'أرغب في مساعدة الآخرين',
   roleCharityDesc: 'جمعية خيرية',
+  roleOrganizationDesc: 'مؤسسة خيرية',
   roleRestaurantDesc: 'مطعم يتبرع بالطعام',
   roleHotelDesc: 'فندق يتبرع بالطعام',
   quranMushaf: 'المصحف الشريف',
@@ -482,9 +483,9 @@ const en: Dict = {
   religionOther: 'Other',
   religionRequired: 'Please select a religion',
 
-  selectCountry: 'Select Country',
-  selectCountrySub: 'Select your country to show the correct currency',
-  searchCountry: 'Search country...',
+  selectCountry: 'Choose Country',
+  selectCountrySub: 'Choose your country to display the correct currency',
+  searchCountry: 'Search country',
 
   emailConfirmationRequired: 'Account created! Please check your email to verify your account.',
   roleRequiresApproval: 'This role requires administrator approval. Please contact support or choose a different role.',
@@ -526,6 +527,7 @@ const en: Dict = {
   roleNeederDesc: 'I need meals',
   roleDonorDesc: 'I want to help others',
   roleCharityDesc: 'Charity organization',
+  roleOrganizationDesc: 'Charitable organization',
   roleRestaurantDesc: 'Restaurant donating food',
   roleHotelDesc: 'Hotel donating food',
   quranMushaf: 'Quran Mushaf',
