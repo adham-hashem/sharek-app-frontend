@@ -78,6 +78,7 @@ export default function DonateScreen() {
   const { t, language, profile } = useAuth();
   const [mainTab, setMainTab] = useState<MainTab>('choose');
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
+  const rtl = language === 'ar';
 
   const donorRoles = ['donor', 'charity', 'organization', 'restaurant', 'hotel'];
   const isDonor = profile?.mode === 'donor' || (!profile?.mode && donorRoles.includes(profile?.role ?? ''));
@@ -87,15 +88,13 @@ export default function DonateScreen() {
   return (
     <View style={[styles.container, { flex: 1 }]}>
       {mainTab === 'choose' && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: spacing.xl, paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: 120 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chooseContent}>
           <View style={styles.headerCard}>
-            <View style={[styles.headerIcon, { backgroundColor: colors.green }]}>
-              <HandHeart size={28} color={colors.white} />
-            </View>
-            <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+            <Image source={require('../../assets/images/image copy.png')} style={styles.chooseLogo} resizeMode="contain" />
+            <Text style={[styles.chooseTitle, { fontFamily: `${font}Bold` }]}>
               {t('donate')}
             </Text>
-            <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', fontFamily: `${font}Regular` }]}>
+            <Text style={[styles.chooseSubtitle, { fontFamily: `${font}Regular` }]}>
               {isDonor ? t('shareMealDonorSub') : isNeeder ? t('shareMealNeederSub') : t('shareMealChooseModeSub')}
             </Text>
           </View>
@@ -103,48 +102,44 @@ export default function DonateScreen() {
           {isDonor && (
             <>
               <TouchableOpacity
-                style={styles.choiceCard}
+                style={[styles.choiceCard, styles.choicePrimary, { flexDirection: rtl ? 'row-reverse' : 'row' }]}
                 onPress={() => setMainTab('food')}
                 activeOpacity={0.8}
               >
-                <View style={[styles.choiceIcon, { backgroundColor: colors.greenBg }]}>
-                  <UtensilsCrossed size={26} color={colors.green} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                <ChoiceIllustration kind="food" />
+                <View style={styles.choiceCopy}>
+                  <Text style={[styles.choiceTitle, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>
                     {t('shareFood')}
                   </Text>
-                  <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                  <Text style={[styles.choiceDescription, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}>
                     {t('shareFoodDonorDesc')}
                   </Text>
                 </View>
-                <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+                <View style={styles.choiceArrowPrimary}><ChevronLeft size={19} color={colors.white} style={{ transform: rtl ? [] : [{ scaleX: -1 }] }} /></View>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.choiceCard}
+                style={[styles.choiceCard, styles.choiceRequests, { flexDirection: rtl ? 'row-reverse' : 'row' }]}
                 onPress={() => setMainTab('requests')}
                 activeOpacity={0.8}
               >
-                <View style={[styles.choiceIcon, { backgroundColor: colors.errorBg }]}>
-                  <Bell size={26} color={colors.coral} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+                <ChoiceIllustration kind="request" />
+                <View style={styles.choiceCopy}>
+                  <Text style={[styles.choiceTitle, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>
                     {t('openRequests')}
                   </Text>
-                  <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                  <Text style={[styles.choiceDescription, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}>
                     {t('openRequestsDonorDesc')}
                   </Text>
                 </View>
-                <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+                <View style={styles.choiceArrowSecondary}><ChevronLeft size={18} color={colors.coral} style={{ transform: rtl ? [] : [{ scaleX: -1 }] }} /></View>
               </TouchableOpacity>
             </>
           )}
 
           {isNeeder && (
             <TouchableOpacity
-              style={styles.choiceCard}
+              style={[styles.choiceCard, styles.choiceChat, { flexDirection: rtl ? 'row-reverse' : 'row' }]}
               onPress={() => router.push('/(tabs)/request')}
               activeOpacity={0.8}
             >
@@ -190,18 +185,16 @@ export default function DonateScreen() {
               onPress={() => setMainTab('claimed')}
               activeOpacity={0.8}
             >
-              <View style={[styles.choiceIcon, { backgroundColor: colors.surfaceMuted }]}>
-                <MessageCircle size={26} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
+              <ChoiceIllustration kind="chat" />
+              <View style={styles.choiceCopy}>
+                <Text style={[styles.choiceTitle, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>
                   {t('chatTitle')}
                 </Text>
-                <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
+                <Text style={[styles.choiceDescription, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}>
                   {isDonor ? t('chatWithClaimer') : t('chatWithDonor')}
                 </Text>
               </View>
-              <ChevronLeft size={22} color={colors.brownMuted} style={{ transform: [{ scaleX: -1 }] }} />
+              <View style={styles.choiceArrowChat}><ChevronLeft size={18} color={colors.greenDark} style={{ transform: rtl ? [] : [{ scaleX: -1 }] }} /></View>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -225,6 +218,20 @@ function BackBar({ onPress }: { onPress: () => void }) {
         {t('back')}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+function ChoiceIllustration({ kind }: { kind: 'food' | 'request' | 'chat' }) {
+  const tint = kind === 'food' ? colors.greenBg : kind === 'request' ? '#FFEDE8' : '#F1EEE6';
+  const ink = kind === 'request' ? colors.coral : colors.greenDark;
+  return (
+    <View style={[styles.choiceVisual, { backgroundColor: tint }]} pointerEvents="none">
+      <View style={styles.choiceVisualHalo} />
+      {kind === 'food' ? <PackageCheck size={36} color={ink} strokeWidth={1.8} /> : kind === 'request' ? <Bell size={34} color={ink} strokeWidth={1.8} /> : <MessageCircle size={35} color={ink} strokeWidth={1.8} />}
+      <View style={[styles.choiceVisualDetail, { backgroundColor: kind === 'request' ? colors.white : '#FFF8F0' }]}>
+        {kind === 'request' ? <UtensilsCrossed size={14} color={colors.green} strokeWidth={2} /> : <Heart size={14} color={colors.coral} fill={colors.coral} strokeWidth={1.5} />}
+      </View>
+    </View>
   );
 }
 
@@ -1606,8 +1613,11 @@ const styles = StyleSheet.create({
   radiusChoice: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
   radiusChoiceActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   container: { flex: 1, backgroundColor: colors.background },
-  headerCard: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg, paddingTop: spacing.xl, paddingHorizontal: spacing.lg },
-  headerIcon: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  chooseContent: { paddingTop: spacing.lg, paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: 120 },
+  headerCard: { alignItems: 'center', gap: 5, marginBottom: spacing.md, paddingTop: spacing.sm, paddingHorizontal: spacing.sm },
+  chooseLogo: { width: 134, height: 92, marginBottom: spacing.xs },
+  chooseTitle: { color: colors.greenDark, fontSize: 25, lineHeight: 38, textAlign: 'center' },
+  chooseSubtitle: { color: colors.brownMuted, fontSize: 13, lineHeight: 23, textAlign: 'center', maxWidth: 320 },
   backBar: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     minHeight: 46, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
@@ -1625,11 +1635,22 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   choiceCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
-    borderWidth: 1.5, borderColor: colors.border,
-    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 118,
+    backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md,
+    shadowColor: colors.brown, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.055, shadowRadius: 12, elevation: 2,
   },
+  choicePrimary: { minHeight: 150, backgroundColor: '#EBF7EF', paddingVertical: spacing.lg },
+  choiceRequests: { backgroundColor: '#FFF1EB' },
+  choiceChat: { backgroundColor: '#F8F5EC' },
+  choiceCopy: { flex: 1, gap: 5 },
+  choiceTitle: { color: colors.brown, fontSize: 17, lineHeight: 27 },
+  choiceDescription: { color: colors.brownMuted, fontSize: 12, lineHeight: 21 },
+  choiceVisual: { width: 68, height: 68, borderRadius: 22, alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
+  choiceVisualHalo: { position: 'absolute', width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.52)' },
+  choiceVisualDetail: { position: 'absolute', right: -5, bottom: -5, width: 27, height: 27, borderRadius: 14, alignItems: 'center', justifyContent: 'center', shadowColor: colors.brown, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 1 },
+  choiceArrowPrimary: { width: 29, height: 29, borderRadius: 15, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
+  choiceArrowSecondary: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  choiceArrowChat: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   choiceIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   photoWrap: { position: 'relative', marginBottom: spacing.md },
   photo: { width: '100%', height: 180, borderRadius: radius.md },
