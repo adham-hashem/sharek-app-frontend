@@ -1,66 +1,85 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  StyleSheet, View, Text, TouchableOpacity, ScrollView,
-  TextInput, ActivityIndicator, RefreshControl, Linking,
-} from 'react-native';
-import { useAuth } from '@/lib/auth';
-import { colors, spacing, radius, typography } from '@/lib/theme';
-import { supabase, SupportTransaction } from '@/lib/supabase';
-import { getCountryByCode } from '@/lib/countries';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, Linking, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import {
-  Heart, Check, X, Clock, AlertCircle, ArrowLeft, History,
-  Sparkles, Shield, ChevronLeft,
-} from 'lucide-react-native';
+import { useAuth } from '@/lib/auth';
+import { getCountryByCode, getDefaultMealPrice } from '@/lib/countries';
+import { supabase, SupportTransaction } from '@/lib/supabase';
+import { colors, radius, spacing } from '@/lib/theme';
 
-const PRESET_AMOUNTS = [1, 5, 10, 25, 50];
+// Contributions are paused until a real payment provider is configured.
 const PAYMENTS_ENABLED = false;
 
-type ScreenMode = 'select' | 'processing' | 'success' | 'failed' | 'cancelled' | 'history';
+function niceAmount(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return 5;
+  const scale = 10 ** Math.floor(Math.log10(value));
+  return Math.max(1, [1, 2, 5, 10].map(n => n * scale).reduce((a, b) => Math.abs(b - value) < Math.abs(a - value) ? b : a));
+}
 
 export default function SupportScreen() {
-  const { t, language, rtl, profile, session } = useAuth();
-  const font = language === 'ar' ? 'Cairo-' : 'Inter-';
+  const { language, profile, session } = useAuth();
+  const rtl = language === 'ar';
+  const font = rtl ? 'Cairo-' : 'Inter-';
+  const country = profile?.country ? getCountryByCode(profile.country) : undefined;
+  const currency = country?.currency ?? null;
+  const presetAmounts = useMemo(() => {
+    if (!currency) return [];
+    const base = currency === 'EGP' ? 50 : niceAmount(getDefaultMealPrice(currency));
+    return [base, base * 2, base * 5, base * 10];
+  }, [currency]);
 
-  const [mode, setMode] = useState<ScreenMode>('select');
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [completedTx, setCompletedTx] = useState<SupportTransaction | null>(null);
+  const [customSelected, setCustomSelected] = useState(false);
   const [history, setHistory] = useState<SupportTransaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
-  const currency = profile?.currency ?? 'USD';
-  const country = profile?.country ? getCountryByCode(profile.country) : null;
-  const currencySymbol = country
-    ? (language === 'ar' ? country.currencySymbolAr : country.currencySymbolEn)
-    : currency;
-
-  const amount = selectedAmount ?? (customAmount ? parseFloat(customAmount) : 0);
-
-  const fetchHistory = useCallback(async () => {
-    if (!PAYMENTS_ENABLED || !session?.user) return;
-    const { data, error } = await supabase
-      .from('support_transactions')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false });
-    if (!error && data) {
-      setHistory(data as SupportTransaction[]);
-    }
-  }, [session]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<'paused' | 'error' | null>(null);
+  const amount = customSelected ? Number(customAmount) : (selectedAmount ?? 0);
+  const validAmount = !!currency && Number.isFinite(amount) && amount > 0 && amount <= 1_000_000_000;
 
   useEffect(() => {
-    if (!PAYMENTS_ENABLED) return;
-    fetchHistory();
-    const sub = supabase
-      .channel('support_tx_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_transactions' }, fetchHistory)
-      .subscribe();
-    return () => { supabase.removeChannel(sub); };
-  }, [fetchHistory]);
+    setSelectedAmount(null);
+    setCustomAmount('');
+    setCustomSelected(false);
+    setNotice(null);
+  }, [currency]);
+
+  const copy = rtl ? {
+    title: 'ادعم SHARek', subtitle: 'مساهمتك تساعدنا في تطوير واستمرار SHARek.',
+    choose: 'اختر قيمة المساهمة', custom: 'مبلغ آخر', enter: 'أدخل مبلغًا',
+    unavailable: 'استقبال المساهمات المالية متوقف مؤقتًا.',
+    paused: 'لم تُنشأ مساهمة ولم يُخصم أي مبلغ.', paymentError: 'تعذر بدء الدفع. لم يُخصم أي مبلغ.',
+    contributions: 'مساهماتي', empty: 'لا توجد مساهمات حتى الآن.',
+    historyError: 'تعذر تحميل المساهمات. حاول مرة أخرى.',
+    chooseCountry: 'اختر دولتك أولًا لعرض العملة المناسبة.', countryAction: 'اختيار الدولة',
+    invalid: 'أدخل مبلغًا صالحًا.',
+  } : {
+    title: 'Support SHARek', subtitle: 'Your contribution helps us maintain and improve SHARek.',
+    choose: 'Choose a contribution amount', custom: 'Custom amount', enter: 'Enter an amount',
+    unavailable: 'Financial contributions are temporarily unavailable.',
+    paused: 'No contribution was created and you were not charged.', paymentError: 'Could not start payment. You were not charged.',
+    contributions: 'My Contributions', empty: 'No contributions yet.',
+    historyError: 'Could not load contributions. Please try again.',
+    chooseCountry: 'Choose your country first to display the correct currency.', countryAction: 'Choose country',
+    invalid: 'Enter a valid amount.',
+  };
+
+  const fetchHistory = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setLoadingHistory(true);
+    const { data, error } = await supabase.from('support_transactions')
+      .select('id,user_id,amount,currency,status,stripe_session_id,stripe_payment_intent,transaction_ref,created_at,updated_at')
+      .eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(30);
+    if (error) setHistoryError(true);
+    else { setHistory(data as SupportTransaction[]); setHistoryError(false); }
+    setLoadingHistory(false);
+  }, [session?.user?.id]);
+
+  useEffect(() => { void fetchHistory(); }, [fetchHistory]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -68,519 +87,158 @@ export default function SupportScreen() {
     setRefreshing(false);
   };
 
-  const handlePayment = async () => {
-    if (!PAYMENTS_ENABLED) {
-      setErrorMsg(t('paymentsDisabledNow'));
-      return;
+  const updateCustomAmount = (value: string) => {
+    const normalized = value.replace(',', '.');
+    if (/^\d{0,9}(?:\.\d{0,2})?$/.test(normalized)) {
+      setCustomAmount(normalized);
+      setCustomSelected(true);
+      setSelectedAmount(null);
+      setNotice(null);
     }
-    if (amount <= 0) return;
+  };
+
+  const handleSupport = async () => {
+    if (!validAmount || !currency || busy) return;
+    if (!PAYMENTS_ENABLED) { setNotice('paused'); return; }
     setBusy(true);
-    setErrorMsg('');
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
-      const token = currentSession?.access_token;
-      if (!token) {
-        setErrorMsg(t('errorGeneric'));
-        setBusy(false);
-        return;
-      }
-
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-      const response = await fetch(`${supabaseUrl}/functions/v1/create-support-checkout`, {
+      if (!currentSession?.access_token) throw new Error('No session');
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/create-support-checkout`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          amount,
-          currency,
-          origin: typeof window !== 'undefined' ? window.location.origin : 'https://sharek.app',
-        }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentSession.access_token}` },
+        body: JSON.stringify({ amount, currency, origin: typeof window !== 'undefined' ? window.location.origin : 'https://sharek.app' }),
       });
-
       const result = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 503) {
-          setErrorMsg(t('paymentNotConfigured'));
-        } else {
-          setErrorMsg(result.error || t('errorGeneric'));
-        }
-        setBusy(false);
-        return;
-      }
-
-      if (result.checkout_url) {
-        setMode('processing');
-        const supported = await Linking.canOpenURL(result.checkout_url);
-        if (supported) {
-          await Linking.openURL(result.checkout_url);
-        } else {
-          setErrorMsg(t('errorGeneric'));
-          setMode('select');
-        }
-      }
-    } catch {
-      setErrorMsg(t('errorGeneric'));
-    }
-    setBusy(false);
+      if (!response.ok || typeof result.checkout_url !== 'string' || new URL(result.checkout_url).protocol !== 'https:' || !await Linking.canOpenURL(result.checkout_url)) throw new Error('Checkout unavailable');
+      await Linking.openURL(result.checkout_url);
+    } catch { setNotice('error'); }
+    finally { setBusy(false); }
   };
 
-  const formatDate = (iso: string) => {
-    const d = new Date(iso);
-    return language === 'ar'
-      ? `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
-      : d.toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' });
+  const statusLabel = (status: string) => {
+    const labels: Record<string, [string, string]> = {
+      succeeded: ['مكتملة', 'Completed'], pending: ['قيد الانتظار', 'Pending'],
+      failed: ['فشلت', 'Failed'], cancelled: ['ملغاة', 'Cancelled'],
+    };
+    return labels[status]?.[rtl ? 0 : 1] ?? status;
   };
 
-  const statusConfig: Record<string, { color: string; bg: string; icon: React.ReactNode; labelKey: string }> = {
-    pending: { color: colors.goldenDark, bg: colors.warningBg, icon: <Clock size={16} color={colors.goldenDark} />, labelKey: 'statusPending' },
-    succeeded: { color: colors.green, bg: colors.greenBg, icon: <Check size={16} color={colors.green} />, labelKey: 'statusSucceeded' },
-    failed: { color: colors.error, bg: colors.errorBg, icon: <AlertCircle size={16} color={colors.error} />, labelKey: 'statusFailed' },
-    cancelled: { color: colors.brownMuted, bg: colors.surfaceMuted, icon: <X size={16} color={colors.brownMuted} />, labelKey: 'statusCancelled' },
-  };
-
-  // --- History View ---
-  if (mode === 'history') {
-    return (
-      <View style={styles.container}>
-        <ScreenHeader title={t('supportHistory')} style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl }} />
-        <ScrollView
-          style={styles.container}
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-          <Text style={[typography.caption, { color: colors.brownMuted, marginBottom: spacing.md, fontFamily: `${font}Regular` }]}>
-            {t('supportHistoryDesc')}
-          </Text>
-
-          {history.length === 0 ? (
-            <View style={styles.emptyState}>
-              <History size={40} color={colors.brownMuted} />
-              <Text style={[typography.body, { color: colors.brownMuted, marginTop: spacing.md, fontFamily: `${font}Regular` }]}>
-                {t('noSupportHistory')}
-              </Text>
-            </View>
-          ) : (
-            <View style={{ gap: spacing.sm }}>
-              {history.map((tx) => {
-                const sc = statusConfig[tx.status];
-                return (
-                  <View key={tx.id} style={styles.historyCard}>
-                    <View style={styles.historyLeft}>
-                      <View style={[styles.historyIcon, { backgroundColor: sc.bg }]}>
-                        {sc.icon}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}SemiBold` }]}>
-                          {tx.amount.toFixed(2)} {currencySymbol}
-                        </Text>
-                        <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                          {formatDate(tx.created_at)}
-                        </Text>
-                        <Text style={[typography.micro, { color: colors.brownMuted, fontFamily: `${font}Regular`, marginTop: 2 }]}>
-                          {tx.transaction_ref}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: sc.bg }]}>
-                      <Text style={[typography.micro, { color: sc.color, fontFamily: `${font}Bold` }]}>
-                        {t(sc.labelKey)}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </ScrollView>
-
-        <View style={styles.footerBar}>
-          <TouchableOpacity style={styles.newSupportBtn} onPress={() => setMode('select')} activeOpacity={0.8}>
-            <Heart size={20} color={colors.white} />
-            <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>
-              {t('newSupport')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // --- Success View ---
-  if (mode === 'success' && completedTx) {
-    return (
-      <View style={styles.container}>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, paddingBottom: spacing.xxl }}>
-          <View style={styles.successIconWrap}>
-            <View style={styles.successIconCircle}>
-              <Check size={48} color={colors.white} />
-            </View>
-          </View>
-
-          <Text style={[typography.title, { color: colors.brown, textAlign: 'center', marginTop: spacing.lg, fontFamily: `${font}Bold` }]}>
-            {t('thankYou')}
-          </Text>
-          <Text style={[typography.body, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.sm, fontFamily: `${font}Regular` }]}>
-            {t('thankYouDesc')}
-          </Text>
-
-          <View style={styles.successCard}>
-            <View style={styles.successRow}>
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                {t('supportAmount')}
-              </Text>
-              <Text style={[typography.bodyBold, { color: colors.brown, fontFamily: `${font}Bold` }]}>
-                {completedTx.amount.toFixed(2)} {completedTx.currency}
-              </Text>
-            </View>
-            <View style={styles.successDivider} />
-            <View style={styles.successRow}>
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                {t('supportDate')}
-              </Text>
-              <Text style={[typography.body, { color: colors.brown, fontFamily: `${font}Regular` }]}>
-                {formatDate(completedTx.created_at)}
-              </Text>
-            </View>
-            <View style={styles.successDivider} />
-            <View style={styles.successRow}>
-              <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-                {t('transactionId')}
-              </Text>
-              <Text style={[typography.small, { color: colors.brown, fontFamily: `${font}SemiBold` }]}>
-                {completedTx.transaction_ref}
-              </Text>
-            </View>
-          </View>
-
-          <View style={{ gap: spacing.sm, marginTop: spacing.xl }}>
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => setMode('history')} activeOpacity={0.8}>
-              <History size={20} color={colors.white} />
-              <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold` }]}>
-                {t('viewHistory')}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => { setMode('select'); setCompletedTx(null); setSelectedAmount(null); setCustomAmount(''); }} activeOpacity={0.8}>
-              <Text style={[typography.bodyBold, { color: colors.primary, fontFamily: `${font}Bold` }]}>
-                {t('newSupport')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // --- Processing View ---
-  if (mode === 'processing') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.processingWrap}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[typography.heading, { color: colors.brown, marginTop: spacing.lg, fontFamily: `${font}Bold` }]}>
-            {t('paymentProcessing')}
-          </Text>
-          <Text style={[typography.body, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.sm, fontFamily: `${font}Regular` }]}>
-            {t('paymentPending')}
-          </Text>
-          <TouchableOpacity style={[styles.secondaryBtn, { marginTop: spacing.xl }]} onPress={() => setMode('select')} activeOpacity={0.8}>
-            <Text style={[typography.bodyBold, { color: colors.primary, fontFamily: `${font}Bold` }]}>
-              {t('backToSupport')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // --- Main Selection View ---
   return (
-    <View style={styles.container}>
-      <ScreenHeader title={t('supportSharek')} onBack={() => router.replace('/(tabs)/menu')} style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.xl }} />
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 120 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Hero */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroIconWrap}>
-            <Heart size={32} color={colors.white} fill={colors.white} />
-          </View>
-          <Text style={[typography.heading, { color: colors.brown, textAlign: 'center', marginTop: spacing.md, fontFamily: `${font}Bold` }]}>
-            {t('supportSharek')}
-          </Text>
-          <Text style={[typography.caption, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.xs, fontFamily: `${font}Regular` }]}>
-            {t('supportTagline')}
-          </Text>
-          <View style={styles.currencyPill}>
-            <Text style={[typography.small, { color: colors.brown, fontFamily: `${font}SemiBold` }]}>
-              {country?.flag ?? '🌍'} {currency}
-            </Text>
-          </View>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <View style={[styles.topRow, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')}
+            accessibilityRole="button" accessibilityLabel={rtl ? 'رجوع' : 'Back'}>
+            {rtl ? <ChevronRight size={21} color={colors.brown} /> : <ChevronLeft size={21} color={colors.brown} />}
+          </TouchableOpacity>
         </View>
 
-        {/* Amount Selection */}
-        <Text style={[typography.small, { color: colors.brownMuted, marginBottom: spacing.sm, marginTop: spacing.lg, fontFamily: `${font}SemiBold` }]}>
-          {t('chooseAmount')}
-        </Text>
+        <Image source={require('../assets/images/image copy.png')} style={styles.logo} resizeMode="contain" />
+        <Text style={[styles.title, { fontFamily: `${font}Bold` }]}>{copy.title}</Text>
+        <Text style={[styles.subtitle, { fontFamily: `${font}Regular` }]}>{copy.subtitle}</Text>
 
-        <View style={styles.amountGrid}>
-          {PRESET_AMOUNTS.map((amt) => (
-            <TouchableOpacity
-              key={amt}
-              style={[
-                styles.amountChip,
-                selectedAmount === amt && styles.amountChipActive,
-              ]}
-              onPress={() => { setSelectedAmount(amt); setCustomAmount(''); }}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  typography.bodyBold,
-                  {
-                    color: selectedAmount === amt ? colors.white : colors.brown,
-                    fontFamily: `${font}Bold`,
-                  },
-                ]}
-              >
-                {amt} {currencySymbol}
-              </Text>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>{copy.choose}</Text>
+          <View style={[styles.amountGrid, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+            {presetAmounts.map(value => (
+              <TouchableOpacity key={value} onPress={() => { setSelectedAmount(value); setCustomSelected(false); setCustomAmount(''); setNotice(null); }}
+                style={[styles.amountOption, selectedAmount === value && !customSelected && styles.amountOptionSelected]} accessibilityRole="radio"
+                accessibilityState={{ selected: selectedAmount === value && !customSelected }}>
+                <Text style={[styles.amountText, { fontFamily: `${font}SemiBold` }, selectedAmount === value && !customSelected && styles.amountTextSelected]}>{value.toLocaleString('en-US')} {currency}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => { setCustomSelected(true); setSelectedAmount(null); setNotice(null); }}
+              style={[styles.amountOption, customSelected && styles.amountOptionSelected]} accessibilityRole="radio" accessibilityState={{ selected: customSelected }}>
+              <Text style={[styles.amountText, { fontFamily: `${font}SemiBold` }, customSelected && styles.amountTextSelected]}>{copy.custom}</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Custom Amount */}
-        <Text style={[typography.small, { color: colors.brownMuted, marginBottom: spacing.sm, marginTop: spacing.lg, fontFamily: `${font}SemiBold` }]}>
-          {t('enterCustomAmount')}
-        </Text>
-        <View style={styles.customInputWrap}>
-          <TextInput
-            style={[styles.customInput, { fontFamily: `${font}Regular` }]}
-            value={customAmount}
-            onChangeText={(text) => {
-              setCustomAmount(text);
-              setSelectedAmount(null);
-            }}
-            placeholder="0.00"
-            placeholderTextColor={colors.brownMuted}
-            keyboardType="decimal-pad"
-          />
-          <View style={styles.customCurrencyBadge}>
-            <Text style={[typography.body, { color: colors.brownMuted, fontFamily: `${font}SemiBold` }]}>
-              {currencySymbol}
-            </Text>
           </View>
-        </View>
+          {!currency && <View style={styles.countryPrompt}>
+            <Text style={[styles.hint, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}>{copy.chooseCountry}</Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/country' as never)} accessibilityRole="button">
+              <Text style={[styles.countryAction, { fontFamily: `${font}SemiBold` }]}>{copy.countryAction}</Text>
+            </TouchableOpacity>
+          </View>}
 
-        {/* Error */}
-        {errorMsg ? (
-          <View style={styles.errorBanner}>
-            <AlertCircle size={18} color={colors.error} />
-            <Text style={[typography.small, { color: colors.error, flex: 1, fontFamily: `${font}Regular` }]}>
-              {errorMsg}
-            </Text>
+          <Text style={[styles.inputLabel, { fontFamily: `${font}SemiBold`, textAlign: rtl ? 'right' : 'left' }]}>{copy.enter}</Text>
+          <View style={[styles.inputRow, { flexDirection: rtl ? 'row-reverse' : 'row' }, customSelected && styles.inputRowActive]}>
+            <TextInput style={[styles.input, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}
+              value={customAmount} onChangeText={updateCustomAmount} onFocus={() => { setCustomSelected(true); setSelectedAmount(null); }}
+              placeholder={rtl ? 'أدخل مبلغًا' : 'Enter an amount'} placeholderTextColor={colors.brownMuted}
+              keyboardType="decimal-pad" accessibilityLabel={copy.enter} />
+            <Text style={[styles.currencyCode, { fontFamily: `${font}SemiBold` }]}>{currency ?? '—'}</Text>
           </View>
-        ) : null}
-
-        {/* Security Note */}
-        <View style={styles.securityNote}>
-          <Shield size={16} color={colors.green} />
-          <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
-            {PAYMENTS_ENABLED ? t('securePayment') : t('paymentsDisabledNow')}
-          </Text>
+          {customSelected && !!customAmount && !validAmount && <Text style={[styles.hint, { fontFamily: `${font}Regular` }]}>{copy.invalid}</Text>}
         </View>
 
-        {/* History Link */}
-        <TouchableOpacity
-          style={styles.historyLink}
-          onPress={() => setMode('history')}
-          activeOpacity={0.7}
-        >
-          <History size={18} color={colors.primary} />
-          <Text style={[typography.body, { color: colors.primary, flex: 1, fontFamily: `${font}SemiBold` }]}>
-            {t('supportHistory')}
-          </Text>
-          <ChevronLeft size={20} color={colors.primary} style={{ transform: rtl ? [{ scaleX: -1 }] : [] }} />
+        <TouchableOpacity onPress={handleSupport} disabled={!validAmount || busy} activeOpacity={0.8}
+          style={[styles.primaryButton, (!validAmount || busy) && styles.primaryButtonDisabled]} accessibilityRole="button"
+          accessibilityState={{ disabled: !validAmount || busy }}>
+          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={[styles.primaryText, { fontFamily: `${font}Bold` }]}>
+            {copy.title}{validAmount ? ` — ${amount.toLocaleString('en-US')} ${currency}` : ''}
+          </Text>}
         </TouchableOpacity>
-      </ScrollView>
+        {!PAYMENTS_ENABLED && <Text style={[styles.availability, { fontFamily: `${font}Regular` }]}>{copy.unavailable}</Text>}
+        {notice && <Text style={[styles.notice, { fontFamily: `${font}SemiBold` }]}>{notice === 'paused' ? copy.paused : copy.paymentError}</Text>}
 
-      {/* Bottom Payment Button */}
-      <View style={styles.footerBar}>
-        <TouchableOpacity
-          style={[styles.payBtn, amount <= 0 && { opacity: 0.5 }]}
-          onPress={handlePayment}
-          disabled={amount <= 0 || busy}
-          activeOpacity={0.8}
-        >
-          {busy ? <ActivityIndicator color={colors.white} /> : (
-            <>
-              <Sparkles size={20} color={colors.white} />
-              <Text style={[typography.bodyBold, { color: colors.white, fontFamily: `${font}Bold`, fontSize: 17 }]}>
-                {t('proceedToPayment')}
-              </Text>
-              {amount > 0 && (
-                <View style={styles.payAmountBadge}>
-                  <Text style={[typography.small, { color: colors.primary, fontFamily: `${font}Bold` }]}>
-                    {amount.toFixed(2)} {currencySymbol}
+        <View style={styles.historySection}>
+          <Text style={[styles.sectionTitle, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>{copy.contributions}</Text>
+          {loadingHistory && history.length === 0 ? <ActivityIndicator color={colors.primary} style={styles.historyLoading} /> :
+            historyError ? <TouchableOpacity onPress={fetchHistory}><Text style={[styles.emptyHistory, { fontFamily: `${font}Regular` }]}>{copy.historyError}</Text></TouchableOpacity> :
+            history.length === 0 ? <Text style={[styles.emptyHistory, { fontFamily: `${font}Regular` }]}>{copy.empty}</Text> :
+            history.map(tx => (
+              <View key={tx.id} style={[styles.historyRow, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+                <View style={styles.historyDetails}>
+                  <Text style={[styles.historyAmount, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>{Number(tx.amount).toLocaleString('en-US')} {tx.currency}</Text>
+                  <Text style={[styles.historyDate, { fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}>
+                    {new Intl.DateTimeFormat(rtl ? 'ar-EG' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(tx.created_at))}
                   </Text>
                 </View>
-              )}
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+                <Text style={[styles.status, { fontFamily: `${font}SemiBold`, color: tx.status === 'succeeded' ? colors.greenDark : colors.brownMuted }]}>{statusLabel(tx.status)}</Text>
+              </View>
+            ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-
-  // Hero
-  heroCard: {
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.xl,
-    padding: spacing.xl, alignItems: 'center',
-    borderWidth: 1.5, borderColor: colors.border,
-    marginTop: spacing.md,
-  },
-  heroIconWrap: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: colors.primary,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 4,
-  },
-  currencyPill: {
-    marginTop: spacing.md, backgroundColor: colors.white, borderRadius: radius.pill,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.xs,
-    borderWidth: 1.5, borderColor: colors.border,
-  },
-
-  // Amount grid
-  amountGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm,
-  },
-  amountChip: {
-    width: '31%', paddingVertical: spacing.md, borderRadius: radius.md,
-    backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  amountChipActive: {
-    backgroundColor: colors.primary, borderColor: colors.primary,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 4,
-  },
-
-  // Custom input
-  customInputWrap: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.border,
-    borderRadius: radius.md, paddingHorizontal: spacing.md,
-  },
-  customInput: {
-    ...typography.body, flex: 1, color: colors.brown, paddingVertical: spacing.md,
-  },
-  customCurrencyBadge: {
-    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-  },
-
-  // Error
-  errorBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.errorBg, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    marginTop: spacing.md,
-  },
-
-  // Security
-  securityNote: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    marginTop: spacing.md, justifyContent: 'center',
-  },
-
-  // History link
-  historyLink: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    backgroundColor: colors.surfaceAlt, borderRadius: radius.md,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.md,
-    marginTop: spacing.lg, borderWidth: 1.5, borderColor: colors.border,
-  },
-
-  // Footer
-  footerBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: colors.white,
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl,
-    borderTopWidth: 1.5, borderTopColor: colors.borderLight,
-    shadowColor: colors.shadowStrong, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 1, shadowRadius: 16, elevation: 10,
-  },
-  payBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    backgroundColor: colors.primary, borderRadius: radius.lg,
-    paddingVertical: spacing.md + 2,
-    shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 6,
-  },
-  payAmountBadge: {
-    backgroundColor: colors.white, borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm, paddingVertical: 2,
-  },
-  newSupportBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    backgroundColor: colors.primary, borderRadius: radius.lg, paddingVertical: spacing.md,
-  },
-
-  // Processing
-  processingWrap: {
-    flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: spacing.xl,
-  },
-
-  // Success
-  successIconWrap: { alignItems: 'center', marginTop: spacing.xl },
-  successIconCircle: {
-    width: 88, height: 88, borderRadius: 44,
-    backgroundColor: colors.green,
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: colors.green, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
-  },
-  successCard: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    padding: spacing.lg, marginTop: spacing.xl,
-    borderWidth: 1.5, borderColor: colors.border,
-  },
-  successRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-  },
-  successDivider: {
-    height: 1, backgroundColor: colors.borderLight, marginVertical: spacing.md,
-  },
-  primaryBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md,
-  },
-  secondaryBtn: {
-    alignItems: 'center', backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md, paddingVertical: spacing.md,
-    borderWidth: 1.5, borderColor: colors.border,
-  },
-
-  // History
-  emptyState: {
-    alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.xxl,
-  },
-  historyCard: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    padding: spacing.md, borderWidth: 1.5, borderColor: colors.border,
-  },
-  historyLeft: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1,
-  },
-  historyIcon: {
-    width: 44, height: 44, borderRadius: 22,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  statusBadge: {
-    borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
-  },
+  container: { flex: 1, backgroundColor: colors.white },
+  scroll: { flex: 1 },
+  content: { width: '100%', maxWidth: 620, alignSelf: 'center', paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  topRow: { minHeight: 48, alignItems: 'center', marginTop: spacing.sm },
+  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
+  logo: { width: 144, height: 96, alignSelf: 'center', marginTop: spacing.xs },
+  title: { color: colors.brown, fontSize: 24, lineHeight: 36, textAlign: 'center', marginTop: spacing.sm },
+  subtitle: { color: colors.brownMuted, fontSize: 13, lineHeight: 23, textAlign: 'center', marginTop: 4, marginBottom: spacing.lg },
+  section: { backgroundColor: colors.surfaceAlt, borderRadius: radius.xl, padding: spacing.lg },
+  sectionTitle: { color: colors.brown, fontSize: 17, lineHeight: 28 },
+  amountGrid: { flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  amountOption: { minHeight: 48, minWidth: '30%', flexGrow: 1, borderRadius: radius.md, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm },
+  amountOptionSelected: { backgroundColor: colors.primary },
+  amountText: { color: colors.brown, fontSize: 13, textAlign: 'center' },
+  amountTextSelected: { color: colors.white },
+  inputLabel: { color: colors.brown, fontSize: 13, marginTop: spacing.lg, marginBottom: spacing.sm },
+  inputRow: { minHeight: 52, borderRadius: radius.md, backgroundColor: colors.white, alignItems: 'center', paddingHorizontal: spacing.md },
+  inputRowActive: { borderWidth: 1, borderColor: colors.primary },
+  input: { flex: 1, color: colors.brown, fontSize: 15, paddingVertical: spacing.sm },
+  currencyCode: { color: colors.greenDark, fontSize: 13, paddingHorizontal: spacing.xs },
+  hint: { color: colors.coralDark, fontSize: 12, marginTop: spacing.sm },
+  countryPrompt: { gap: spacing.xs },
+  countryAction: { color: colors.primaryDark, fontSize: 13 },
+  primaryButton: { minHeight: 54, borderRadius: radius.lg, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: spacing.lg, paddingHorizontal: spacing.md, shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.13, shadowRadius: 7, elevation: 2 },
+  primaryButtonDisabled: { opacity: 0.48 },
+  primaryText: { color: colors.white, fontSize: 15, textAlign: 'center' },
+  availability: { color: colors.brownMuted, fontSize: 11, lineHeight: 18, textAlign: 'center', marginTop: spacing.sm },
+  notice: { color: colors.brown, backgroundColor: colors.surfaceAlt, fontSize: 12, lineHeight: 20, textAlign: 'center', marginTop: spacing.sm, padding: spacing.sm, borderRadius: radius.md },
+  historySection: { marginTop: spacing.xl },
+  historyLoading: { marginTop: spacing.lg },
+  emptyHistory: { color: colors.brownMuted, fontSize: 13, lineHeight: 22, marginTop: spacing.md, paddingVertical: spacing.md, textAlign: 'center', backgroundColor: colors.surfaceAlt, borderRadius: radius.md },
+  historyRow: { minHeight: 68, alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceAlt, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.sm },
+  historyDetails: { flex: 1 },
+  historyAmount: { color: colors.brown, fontSize: 14 },
+  historyDate: { color: colors.brownMuted, fontSize: 11, marginTop: 3 },
+  status: { fontSize: 11, marginHorizontal: spacing.sm },
 });
