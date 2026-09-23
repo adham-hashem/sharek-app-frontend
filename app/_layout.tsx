@@ -30,7 +30,7 @@ function RootNav() {
       router.replace('/reset-password' as any);
       return;
     }
-    if (loading || session || pathname === '/' || isAuthRoute || isPasswordRecoveryRoute) return;
+    if (loading || session || pathname === '/' || pathname === '/auth-callback' || isAuthRoute || isPasswordRecoveryRoute) return;
     router.replace('/(auth)/welcome');
   }, [isAuthRoute, isPasswordRecoveryRoute, loading, pathname, router, session]);
 
@@ -45,6 +45,8 @@ function RootNav() {
       <Stack.Screen name="(auth)/language" />
       <Stack.Screen name="(auth)/register" />
       <Stack.Screen name="(auth)/login" />
+      <Stack.Screen name="auth-callback" />
+      <Stack.Screen name="(auth)/profile-photo" />
       <Stack.Screen name="reset-password" />
       <Stack.Screen name="forgot-password" />
       <Stack.Screen name="change-password" />

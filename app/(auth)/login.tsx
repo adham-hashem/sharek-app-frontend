@@ -5,6 +5,7 @@ import { colors, spacing, radius, typography } from '@/lib/theme';
 import { router } from 'expo-router';
 import { Lock, User } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { SocialSignIn } from '@/components/SocialSignIn';
 
 export default function LoginScreen() {
   const { signIn, t, language } = useAuth();
@@ -79,6 +80,8 @@ export default function LoginScreen() {
           <TouchableOpacity onPress={() => router.push('/forgot-password' as never)} disabled={busy} accessibilityRole="button">
             <Text style={styles.forgotText}>{t('forgotPassword')}</Text>
           </TouchableOpacity>
+
+          <SocialSignIn onError={setError} />
 
           <View style={styles.switchRow}>
             <Text style={styles.switchText}>{t('noAccount')} </Text>

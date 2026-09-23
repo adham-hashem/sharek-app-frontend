@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView, Image,
-  Alert, Modal, ActivityIndicator, TextInput, Platform,
+  Alert, Modal, ActivityIndicator, TextInput, Platform, Pressable,
 } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
@@ -11,10 +11,11 @@ import { ContributorBadges } from '@/components/ContributorBadges';
 import { AchievementBadgeDisplay, AchievementProgress, AllBadgesRow } from '@/components/AchievementBadge';
 import {
   User, Edit3, Shield, Settings as SettingsIcon, LogOut,
-  ChevronLeft, X, Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel, Check, Star, Phone, Mail, MapPin,
-  MessageCircle, History, BadgeCheck, ShieldCheck, Book,
+  ChevronLeft, X, Heart, HandHeart, Building2, Building, UtensilsCrossed, Hotel, Check, Star,
+  MessageCircle, History, BadgeCheck, ShieldCheck, Book, Menu as MenuIcon, Award,
 } from 'lucide-react-native';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const roleConfig: Array<{ role: UserRole; icon: React.ReactNode; labelKey: string; color: string }> = [
   { role: 'needer', icon: <Heart size={22} color={colors.coral} />, labelKey: 'modeNeeder', color: colors.coral },
@@ -37,12 +38,15 @@ export default function MenuScreen() {
   const [roleModal, setRoleModal] = useState(false);
   const [modeModal, setModeModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editCountry, setEditCountry] = useState('');
   const [unread, setUnread] = useState(0);
   const [donorStats, setDonorStats] = useState({ donated_meals: 0, people_helped: 0 });
+  const profileScrollRef = useRef<ScrollView>(null);
+  const achievementY = useRef(0);
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   const donorMode = profile?.role === 'donor' || profile?.mode === 'donor';
 
@@ -154,20 +158,20 @@ export default function MenuScreen() {
   };
 
   const MenuItem = ({
-    icon, label, onPress, color, bg, showChevron, destructive, badge,
+    icon, label, onPress, bg, showChevron, destructive, badge,
   }: {
     icon: React.ReactNode;
     label: string;
     onPress: () => void;
-    color: string;
+    color?: string;
     bg: string;
     showChevron?: boolean;
     destructive?: boolean;
     badge?: number;
   }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={[styles.menuItem, { flexDirection: rtl ? 'row-reverse' : 'row' }]} onPress={() => { setDrawerOpen(false); onPress(); }} activeOpacity={0.7}>
       <View style={[styles.menuIcon, { backgroundColor: bg }]}>{icon}</View>
-      <Text style={[typography.body, { color: destructive ? colors.error : colors.brown, flex: 1, fontFamily: `${font}Regular` }]}>
+      <Text style={[typography.body, { color: destructive ? colors.error : colors.brown, flex: 1, fontFamily: `${font}Regular`, textAlign: rtl ? 'right' : 'left' }]}>
         {label}
       </Text>
       {badge !== undefined && badge > 0 && (
@@ -183,10 +187,28 @@ export default function MenuScreen() {
   const isOrgRole = profile && ORG_ROLES.includes(profile.role);
   const currentMode = isOrgRole ? modeConfig.find(m => m.mode === profile?.mode) : null;
 
+  const DrawerHeading = ({ title }: { title: string }) => (
+    <Text style={[styles.drawerHeading, { fontFamily: `${font}Bold`, textAlign: rtl ? 'right' : 'left' }]}>{title}</Text>
+  );
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl + 88 }}>
+    <ScrollView ref={profileScrollRef} style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl + 88 }}>
       <View style={styles.headerBg}>
-        <Image source={require('../../assets/images/image copy.png')} style={styles.headerLogo} resizeMode="contain" />
+        <View style={[styles.profileToolbar, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+          <TouchableOpacity style={styles.hamburgerButton} onPress={() => setDrawerOpen(true)} accessibilityRole="button" accessibilityLabel={t('menu')}>
+            <MenuIcon size={22} color={colors.brown} />
+            {unread > 0 && <View style={styles.hamburgerDot} />}
+          </TouchableOpacity>
+          <Text style={[styles.profileToolbarTitle, { fontFamily: `${font}Bold` }]}>{t('profile')}</Text>
+          <View style={styles.toolbarSpacer} />
+        </View>
+        {profile?.avatar_url ? (
+          <Image source={{ uri: profile.avatar_url }} style={styles.profileAvatar} />
+        ) : (
+          <View style={[styles.profileAvatar, styles.profileAvatarPlaceholder]}>
+            <Text style={[styles.profileInitial, { fontFamily: `${font}Bold` }]}>{profile?.full_name?.charAt(0)?.toUpperCase() ?? 'S'}</Text>
+          </View>
+        )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm }}>
           <Text style={[typography.heading, { color: colors.brown, fontFamily: `${font}Bold` }]}>
             {profile?.full_name ?? 'SHARek'}
@@ -199,6 +221,9 @@ export default function MenuScreen() {
         <Text style={[typography.caption, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
           {profile?.email}
         </Text>
+        <Text style={[styles.verificationText, { fontFamily: `${font}SemiBold`, color: profile?.is_verified ? colors.greenDark : colors.brownMuted }]}>
+          {profile?.is_verified ? t('verifiedAccount') : t('getVerified')}
+        </Text>
         {currentRole && (
           <View style={styles.roleBadge}>
             {currentRole.icon}
@@ -207,7 +232,7 @@ export default function MenuScreen() {
             </Text>
           </View>
         )}
-        {profile && profile.rating > 0 && (
+        {profile && (
           <View style={styles.ratingRow}>
             {renderStars(profile.rating)}
             <Text style={[typography.small, { color: colors.brownMuted, fontFamily: `${font}Regular` }]}>
@@ -243,7 +268,7 @@ export default function MenuScreen() {
       )}
 
       {profile && (
-        <View style={styles.achievementCard}>
+        <View style={styles.achievementCard} onLayout={event => { achievementY.current = event.nativeEvent.layout.y; }}>
           <Text style={[typography.small, { color: colors.brownMuted, marginBottom: spacing.sm, fontFamily: `${font}SemiBold` }]}>
             {t('achievementProgress')}
           </Text>
@@ -259,19 +284,61 @@ export default function MenuScreen() {
         </View>
       )}
 
-      <View style={styles.menuSection}>
-        <Text style={[typography.small, { color: colors.brownMuted, marginBottom: spacing.sm, fontFamily: `${font}SemiBold` }]}>
-          {t('menu')}
+      <View style={[styles.profileActions, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+        <TouchableOpacity style={styles.profileAction} onPress={() => router.push(donorMode ? '/(tabs)/donate' : '/(tabs)/request')}>
+          <UtensilsCrossed size={18} color={colors.green} />
+          <Text style={[styles.profileActionText, { fontFamily: `${font}SemiBold` }]}>{t(donorMode ? 'donate' : 'request')}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.profileAction} onPress={() => router.push('/history' as never)}>
+          <History size={18} color={colors.primary} />
+          <Text style={[styles.profileActionText, { fontFamily: `${font}SemiBold` }]}>{t('history')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {profile && (
+        <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.lg, fontFamily: `${font}Regular` }]}>
+          {t('memberSince')} {formatDate(profile.created_at)}
         </Text>
+      )}
+
+      <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
+        <View style={styles.drawerOverlay}>
+          <Pressable style={styles.drawerBackdrop} onPress={() => setDrawerOpen(false)} accessibilityLabel={t('back')} />
+          <SafeAreaView style={[styles.drawerPanel, rtl ? { right: 0 } : { left: 0 }]} edges={['top', 'bottom']}>
+            <View style={[styles.drawerTop, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
+              <Text style={[styles.drawerTitle, { fontFamily: `${font}Bold` }]}>{t('menu')}</Text>
+              <TouchableOpacity onPress={() => setDrawerOpen(false)} style={styles.drawerClose} accessibilityRole="button" accessibilityLabel={t('back')}>
+                <X size={21} color={colors.brown} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.drawerScroll}>
+      <View style={styles.menuSection}>
+        <DrawerHeading title={language === 'ar' ? 'الحساب' : 'Account'} />
 
         <MenuItem
           icon={<User size={20} color={colors.primary} />}
-          label={t('personalAccount')}
-          onPress={openEditProfile}
-          color={colors.primary}
+          label={t('profile')}
+          onPress={() => profileScrollRef.current?.scrollTo({ y: 0, animated: true })}
           bg={colors.surfaceAlt}
           showChevron
         />
+        <MenuItem
+          icon={<Edit3 size={20} color={colors.goldenDark} />}
+          label={t('editProfile')}
+          onPress={() => setTimeout(openEditProfile, 250)}
+          color={colors.goldenDark}
+          bg={colors.warningBg}
+          showChevron
+        />
+        <MenuItem
+          icon={<BadgeCheck size={20} color="#1DA1F2" />}
+          label={profile?.is_verified ? t('verifiedAccount') : t('getVerified')}
+          onPress={() => router.push('/verify-account' as never)}
+          color="#1DA1F2"
+          bg="rgba(29, 161, 242, 0.1)"
+          showChevron
+        />
+        <DrawerHeading title={language === 'ar' ? 'النشاط' : 'Activity'} />
         <MenuItem
           icon={<History size={20} color={colors.green} />}
           label={t('history')}
@@ -280,6 +347,21 @@ export default function MenuScreen() {
           bg={colors.greenBg}
           showChevron
         />
+        <MenuItem
+          icon={<UtensilsCrossed size={20} color={colors.green} />}
+          label={t(donorMode ? 'donate' : 'request')}
+          onPress={() => router.push(donorMode ? '/(tabs)/donate' : '/(tabs)/request')}
+          bg={colors.greenBg}
+          showChevron
+        />
+        <MenuItem
+          icon={<Award size={20} color={colors.goldenDark} />}
+          label={t('badgesTitle')}
+          onPress={() => profileScrollRef.current?.scrollTo({ y: achievementY.current, animated: true })}
+          bg={colors.warningBg}
+          showChevron
+        />
+        <DrawerHeading title={language === 'ar' ? 'التواصل' : 'Communication'} />
         <MenuItem
           icon={<MessageCircle size={20} color={colors.coral} />}
           label={t('chatTitle')}
@@ -290,17 +372,18 @@ export default function MenuScreen() {
           badge={unread}
         />
         <MenuItem
-          icon={<Edit3 size={20} color={colors.goldenDark} />}
-          label={t('editProfile')}
-          onPress={openEditProfile}
+          icon={<Heart size={20} color={colors.goldenDark} />}
+          label={t('supportSharekHeart')}
+          onPress={() => router.push('/support' as never)}
           color={colors.goldenDark}
           bg={colors.warningBg}
           showChevron
         />
+        <DrawerHeading title={language === 'ar' ? 'الإعدادات' : 'Settings'} />
         <MenuItem
           icon={currentRole?.icon ?? <Shield size={20} color={colors.green} />}
           label={t('userMode')}
-          onPress={() => setRoleModal(true)}
+          onPress={() => setTimeout(() => setRoleModal(true), 250)}
           color={colors.green}
           bg={colors.greenBg}
           showChevron
@@ -309,7 +392,7 @@ export default function MenuScreen() {
           <MenuItem
             icon={currentMode?.icon ?? <Heart size={20} color={colors.coral} />}
             label={t('selectMode')}
-            onPress={() => setModeModal(true)}
+            onPress={() => setTimeout(() => setModeModal(true), 250)}
             color={colors.coral}
             bg={colors.errorBg}
             showChevron
@@ -341,22 +424,6 @@ export default function MenuScreen() {
           bg={colors.errorBg}
           showChevron
         />
-        <MenuItem
-          icon={<Heart size={20} color={colors.goldenDark} />}
-          label={t('supportSharekHeart')}
-          onPress={() => router.push('/support' as never)}
-          color={colors.goldenDark}
-          bg={colors.warningBg}
-          showChevron
-        />
-        <MenuItem
-          icon={<BadgeCheck size={20} color="#1DA1F2" />}
-          label={profile?.is_verified ? t('verifiedAccount') : t('getVerified')}
-          onPress={() => router.push('/verify-account' as never)}
-          color="#1DA1F2"
-          bg="rgba(29, 161, 242, 0.1)"
-          showChevron
-        />
         {profile?.is_admin && (
           <MenuItem
             icon={<ShieldCheck size={20} color={colors.primary} />}
@@ -375,12 +442,10 @@ export default function MenuScreen() {
           {t('signOut')}
         </Text>
       </TouchableOpacity>
-
-      {profile && (
-        <Text style={[typography.small, { color: colors.brownMuted, textAlign: 'center', marginTop: spacing.lg, fontFamily: `${font}Regular` }]}>
-          {t('memberSince')} {formatDate(profile.created_at)}
-        </Text>
-      )}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
 
       <Modal visible={roleModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
@@ -511,12 +576,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
     borderBottomLeftRadius: radius.xl,
     borderBottomRightRadius: radius.xl,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
+    paddingTop: spacing.md,
     alignItems: 'center',
   },
-  headerLogo: { width: 72, height: 72 },
+  profileToolbar: { width: '100%', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
+  profileToolbarTitle: { fontSize: 17, color: colors.brown },
+  hamburgerButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white },
+  hamburgerDot: { position: 'absolute', top: 7, right: 6, width: 7, height: 7, borderRadius: 4, backgroundColor: colors.coral },
+  toolbarSpacer: { width: 42 },
+  profileAvatar: { width: 86, height: 86, borderRadius: 43 },
+  profileAvatarPlaceholder: { backgroundColor: colors.greenBg, alignItems: 'center', justifyContent: 'center' },
+  profileInitial: { fontSize: 32, color: colors.greenDark },
+  verificationText: { fontSize: 11, marginTop: 3 },
   roleBadge: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
     backgroundColor: colors.white, borderRadius: radius.pill,
@@ -530,19 +603,29 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border,
   },
   menuSection: {
-    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.sm,
-    marginHorizontal: spacing.lg, marginTop: spacing.lg, borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   menuItem: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-    paddingVertical: spacing.md, paddingHorizontal: spacing.sm,
+    alignItems: 'center', gap: spacing.sm,
+    minHeight: 54, paddingVertical: spacing.sm, paddingHorizontal: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderLight,
   },
-  menuIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  menuIcon: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  profileActions: { gap: spacing.sm, marginHorizontal: spacing.lg, marginTop: spacing.md },
+  profileAction: { flex: 1, minHeight: 50, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: spacing.xs },
+  profileActionText: { color: colors.brown, fontSize: 12, textAlign: 'center' },
+  drawerOverlay: { flex: 1, backgroundColor: colors.overlay },
+  drawerBackdrop: { flex: 1 },
+  drawerPanel: { position: 'absolute', top: 0, bottom: 0, width: '84%', maxWidth: 360, backgroundColor: colors.white },
+  drawerTop: { alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  drawerTitle: { color: colors.brown, fontSize: 19 },
+  drawerClose: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
+  drawerScroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
+  drawerHeading: { color: colors.brownMuted, fontSize: 12, marginTop: spacing.lg, marginBottom: spacing.xs, paddingHorizontal: spacing.sm },
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
     backgroundColor: colors.errorBg, borderRadius: radius.md, minHeight: 52, paddingVertical: spacing.md,
-    marginHorizontal: spacing.lg, marginTop: spacing.lg,
+    marginTop: spacing.lg,
   },
   modalOverlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' },
   unreadBadge: {

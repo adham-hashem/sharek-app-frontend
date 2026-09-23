@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { Mail, Lock, User, Moon, Church, Globe, Check, Scroll, Phone } from 'lucide-react-native';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { UserReligion } from '@/lib/supabase';
+import { SocialSignIn } from '@/components/SocialSignIn';
 
 const religionOptions: Array<{
   value: UserReligion;
@@ -190,6 +191,8 @@ export default function RegisterScreen() {
           <TouchableOpacity style={styles.button} onPress={submit} disabled={busy} activeOpacity={0.8}>
             {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.buttonText}>{t('createAccount')}</Text>}
           </TouchableOpacity>
+
+          <SocialSignIn onError={setError} />
 
           <View style={styles.switchRow}>
             <Text style={styles.switchText}>{t('haveAccount')} </Text>

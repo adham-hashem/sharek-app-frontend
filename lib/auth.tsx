@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { registerPushDevice } from './push';
 import { Platform } from 'react-native';
 import { apiPublicPost } from './api';
+import * as WebBrowser from 'expo-web-browser';
 
 interface AuthContextType {
   session: Session | null;
@@ -120,14 +121,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, newSession) => {
       (async () => {
+        if (newSession && event === 'SIGNED_IN') setLoading(true);
         setSession(newSession);
         if (newSession) {
-          await Promise.all([
+          const [loadedProfile] = await Promise.all([
             loadProfile(newSession.user.id),
             loadSettings(newSession.user.id),
           ]);
+          const pendingLanguage = await AsyncStorage.getItem('sharek_oauth_language');
+          const provider = newSession.user.app_metadata?.provider;
+          if (pendingLanguage && (provider === 'google' || provider === 'facebook')) {
+            if (loadedProfile?.role === 'skipped' && pendingLanguage !== loadedProfile.language) {
+              const { error } = await supabase.from('profiles').update({ language: pendingLanguage }).eq('id', newSession.user.id);
+              if (!error) await loadProfile(newSession.user.id);
+            }
+            await AsyncStorage.removeItem('sharek_oauth_language');
+          }
           registerPushDevice().catch((error) => console.warn('push registration unavailable', error));
         } else {
           setProfile(null);
@@ -200,15 +211,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   
   const signInWithOAuth = useCallback(async (provider: 'google' | 'facebook') => {
-    const { data, error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: getAuthRedirectUrl('/') } });
+    const enabled = provider === 'google'
+      ? process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === 'true'
+      : process.env.EXPO_PUBLIC_FACEBOOK_AUTH_ENABLED === 'true';
+    if (!enabled) return { error: 'oauthProviderDisabled', url: null };
+    await AsyncStorage.setItem('sharek_oauth_language', language);
+    const redirectTo = getAuthRedirectUrl('/auth-callback');
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo, skipBrowserRedirect: true },
+    });
     if (error) {
       if (error.message.toLowerCase().includes('unsupported provider')) {
         return { error: 'oauthProviderDisabled', url: null };
       }
       return { error: 'errorGeneric', url: null };
     }
-    return { error: null, url: data.url };
-  }, []);
+    if (!data.url) return { error: 'errorGeneric', url: null };
+    if (Platform.OS === 'web') {
+      window.location.assign(data.url);
+      return { error: null, url: data.url };
+    }
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success') return { error: null, url: null };
+      const returned = new URL(result.url);
+      const params = new URLSearchParams(returned.hash.slice(1));
+      if (params.has('error') || returned.searchParams.has('error')) return { error: 'authError', url: null };
+      const accessToken = params.get('access_token') ?? returned.searchParams.get('access_token');
+      const refreshToken = params.get('refresh_token') ?? returned.searchParams.get('refresh_token');
+      const code = returned.searchParams.get('code');
+      if (code) {
+        const { error: codeError } = await supabase.auth.exchangeCodeForSession(code);
+        return { error: codeError ? 'authError' : null, url: codeError ? null : redirectTo };
+      }
+      if (!accessToken || !refreshToken) return { error: 'authError', url: null };
+      const { error: sessionError } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      return { error: sessionError ? 'authError' : null, url: sessionError ? null : redirectTo };
+    } catch {
+      return { error: 'authError', url: null };
+    }
+  }, [language]);
 
   const signIn = useCallback(async (identifier: string, password: string) => {
     try {

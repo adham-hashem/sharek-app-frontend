@@ -10,6 +10,13 @@ export default function Index() {
     return <Redirect href="/(auth)/welcome" />;
   }
 
+  const provider = session.user.app_metadata?.provider;
+  if ((provider === 'google' || provider === 'facebook') &&
+      (!profile || profile.role === 'skipped') &&
+      session.user.user_metadata?.sharek_photo_step_done !== true) {
+    return <Redirect href={'/(auth)/profile-photo' as never} />;
+  }
+
   if (!profile || profile.role === 'skipped') {
     return <Redirect href="/(auth)/role" />;
   }
