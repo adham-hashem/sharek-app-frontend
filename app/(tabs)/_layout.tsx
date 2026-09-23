@@ -4,12 +4,16 @@ import { colors } from '@/lib/theme';
 import { useAuth } from '@/lib/auth';
 import { Platform, Dimensions } from 'react-native';
 import { Redirect } from 'expo-router';
+import { useState } from 'react';
+import ProfileAndMenu from '@/components/ProfileAndMenu';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isSmallPhone = SCREEN_WIDTH < 360;
 const isWeb = Platform.OS === 'web';
 
 export default function TabLayout() {
+  const [menuMounted, setMenuMounted] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { t, language, session, profile } = useAuth();
   const isDonor = profile?.role === 'donor' || profile?.mode === 'donor';
   const isSmallPhone = SCREEN_WIDTH < 360;
@@ -24,7 +28,7 @@ export default function TabLayout() {
   const barHeight = isWeb ? 62 : isSmallPhone ? 62 : 66;
   const tabCount = isDonor ? 5 : 4;
 
-  return (
+  return (<>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -105,8 +109,15 @@ export default function TabLayout() {
           title: t('menu'),
           tabBarIcon: ({ color }) => <Menu size={iconSize} color={color} />,
         }}
+        listeners={{ tabPress: event => {
+          event.preventDefault();
+          setMenuMounted(true);
+          setMenuOpen(true);
+        } }}
       />
       <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
+    {menuMounted && <ProfileAndMenu drawerOnly drawerVisible={menuOpen} onDrawerClose={() => setMenuOpen(false)} />}
+  </>
   );
 }
