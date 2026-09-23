@@ -106,6 +106,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Menu size={iconSize} color={color} />,
         }}
       />
+      <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
   );
 }

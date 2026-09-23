@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView, Image,
   Alert, Modal, ActivityIndicator, TextInput, Platform, Pressable,
@@ -6,7 +6,8 @@ import {
 import { useAuth } from '@/lib/auth';
 import { colors, spacing, radius, typography } from '@/lib/theme';
 import { supabase, UserRole, UserMode } from '@/lib/supabase';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { ContributorBadges } from '@/components/ContributorBadges';
 import { AchievementBadgeDisplay, AchievementProgress, AllBadgesRow } from '@/components/AchievementBadge';
 import {
@@ -33,12 +34,13 @@ const modeConfig: Array<{ mode: UserMode; icon: React.ReactNode; labelKey: strin
   { mode: 'donor', icon: <HandHeart size={22} color={colors.green} />, labelKey: 'modeDonor', color: colors.green },
 ];
 
-export default function MenuScreen() {
+export default function MenuScreen({ profileView = false, initialSection }: { profileView?: boolean; initialSection?: string }) {
+  const navigation = useNavigation();
   const { profile, t, language, rtl, signOut, updateRole, updateMode, updateProfile, user } = useAuth();
   const [roleModal, setRoleModal] = useState(false);
   const [modeModal, setModeModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(!profileView);
   const [busy, setBusy] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -46,9 +48,27 @@ export default function MenuScreen() {
   const [unread, setUnread] = useState(0);
   const [donorStats, setDonorStats] = useState({ donated_meals: 0, people_helped: 0 });
   const profileScrollRef = useRef<ScrollView>(null);
+  const statsY = useRef(0);
   const achievementY = useRef(0);
   const font = language === 'ar' ? 'Cairo-' : 'Inter-';
   const donorMode = profile?.role === 'donor' || profile?.mode === 'donor';
+
+  useFocusEffect(useCallback(() => {
+    if (!profileView) setDrawerOpen(true);
+  }, [profileView]));
+
+  useEffect(() => {
+    if (profileView) return;
+    return navigation.addListener('tabPress' as never, () => setDrawerOpen(true));
+  }, [navigation, profileView]);
+
+  const navigateToProfile = (section?: 'stats' | 'badges') => {
+    if (profileView) {
+      profileScrollRef.current?.scrollTo({ y: section === 'badges' ? achievementY.current : section === 'stats' ? statsY.current : 0, animated: true });
+      return;
+    }
+    router.push((section ? `/(tabs)/profile?section=${section}` : '/(tabs)/profile') as never);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -193,6 +213,7 @@ export default function MenuScreen() {
 
   return (
     <ScrollView ref={profileScrollRef} style={styles.container} contentContainerStyle={{ paddingBottom: spacing.xxl + 88 }}>
+      {profileView ? <>
       <View style={styles.headerBg}>
         <View style={[styles.profileToolbar, { flexDirection: rtl ? 'row-reverse' : 'row' }]}>
           <TouchableOpacity style={styles.hamburgerButton} onPress={() => setDrawerOpen(true)} accessibilityRole="button" accessibilityLabel={t('menu')}>
@@ -242,7 +263,10 @@ export default function MenuScreen() {
         )}
       </View>
 
-      <View style={styles.statsRow}>
+      <View style={styles.statsRow} onLayout={event => {
+        statsY.current = event.nativeEvent.layout.y;
+        if (initialSection === 'stats') requestAnimationFrame(() => profileScrollRef.current?.scrollTo({ y: statsY.current, animated: true }));
+      }}>
         <View style={styles.statCard}>
           <HandHeart size={20} color={colors.green} />
           <Text style={[typography.huge, { color: colors.brown, fontSize: 22, fontFamily: `${font}ExtraBold` }]}>
@@ -268,7 +292,10 @@ export default function MenuScreen() {
       )}
 
       {profile && (
-        <View style={styles.achievementCard} onLayout={event => { achievementY.current = event.nativeEvent.layout.y; }}>
+        <View style={styles.achievementCard} onLayout={event => {
+          achievementY.current = event.nativeEvent.layout.y;
+          if (initialSection === 'badges') requestAnimationFrame(() => profileScrollRef.current?.scrollTo({ y: achievementY.current, animated: true }));
+        }}>
           <Text style={[typography.small, { color: colors.brownMuted, marginBottom: spacing.sm, fontFamily: `${font}SemiBold` }]}>
             {t('achievementProgress')}
           </Text>
@@ -300,6 +327,14 @@ export default function MenuScreen() {
           {t('memberSince')} {formatDate(profile.created_at)}
         </Text>
       )}
+      </> : <View style={styles.menuLanding}>
+        <View style={styles.menuLandingIcon}><MenuIcon size={34} color={colors.primary} /></View>
+        <Text style={[styles.menuLandingTitle, { fontFamily: `${font}Bold` }]}>{t('menu')}</Text>
+        <TouchableOpacity style={styles.openMenuButton} onPress={() => setDrawerOpen(true)} accessibilityRole="button" accessibilityLabel={t('menu')}>
+          <MenuIcon size={20} color={colors.white} />
+          <Text style={[styles.openMenuText, { fontFamily: `${font}Bold` }]}>{t('menu')}</Text>
+        </TouchableOpacity>
+      </View>}
 
       <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
         <View style={styles.drawerOverlay}>
@@ -318,7 +353,7 @@ export default function MenuScreen() {
         <MenuItem
           icon={<User size={20} color={colors.primary} />}
           label={t('profile')}
-          onPress={() => profileScrollRef.current?.scrollTo({ y: 0, animated: true })}
+          onPress={() => navigateToProfile()}
           bg={colors.surfaceAlt}
           showChevron
         />
@@ -355,9 +390,16 @@ export default function MenuScreen() {
           showChevron
         />
         <MenuItem
+          icon={<HandHeart size={20} color={colors.green} />}
+          label={t('peopleHelped')}
+          onPress={() => navigateToProfile('stats')}
+          bg={colors.greenBg}
+          showChevron
+        />
+        <MenuItem
           icon={<Award size={20} color={colors.goldenDark} />}
           label={t('badgesTitle')}
-          onPress={() => profileScrollRef.current?.scrollTo({ y: achievementY.current, animated: true })}
+          onPress={() => navigateToProfile('badges')}
           bg={colors.warningBg}
           showChevron
         />
@@ -572,6 +614,11 @@ export default function MenuScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  menuLanding: { flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.md },
+  menuLandingIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  menuLandingTitle: { color: colors.brown, fontSize: 21 },
+  openMenuButton: { minHeight: 52, minWidth: 170, borderRadius: radius.md, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  openMenuText: { color: colors.white, fontSize: 15 },
   headerBg: {
     backgroundColor: colors.surfaceAlt,
     borderBottomLeftRadius: radius.xl,
