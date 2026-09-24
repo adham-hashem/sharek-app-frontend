@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
@@ -8,8 +8,8 @@ import { ScreenHeader } from '@/components/ScreenHeader';
 import { getMushafPage, QURAN_PAGE_COUNT } from '@/lib/quranOffline';
 import { SURAHS } from '@/lib/quranIndex';
 
-type Reading = { page: number; bookmarks: number[]; days: Record<string, number[]>; lastReadAt: string | null };
-const initial: Reading = { page: 1, bookmarks: [], days: {}, lastReadAt: null };
+type Reading = { page: number; bookmarks: number[]; highlights: string[]; days: Record<string, number[]>; lastReadAt: string | null };
+const initial: Reading = { page: 1, bookmarks: [], highlights: [], days: {}, lastReadAt: null };
 const juzStarts = [1,22,42,62,82,102,121,142,162,182,201,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522,542,562,582];
 const juz = (page: number) => juzStarts.reduce((v, p, i) => page >= p ? i + 1 : v, 1);
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -26,7 +26,7 @@ export default function QuranScreen() {
   const [showIndex, setShowIndex] = useState<'juz' | 'surah' | null>(null);
   const [jump, setJump] = useState('');
   const [zoom, setZoom] = useState(1);
-  const [pageUri, setPageUri] = useState<string | null>(null);
+  const [rawSvg, setRawSvg] = useState<string | null>(null);
   const [pageError, setPageError] = useState(false);
   const [retry, setRetry] = useState(0);
   const touchX = useRef<number | null>(null);
@@ -40,7 +40,7 @@ export default function QuranScreen() {
       if (raw) try {
         const saved = JSON.parse(raw) as Reading;
         if (Number.isInteger(saved.page) && saved.page >= 1 && saved.page <= QURAN_PAGE_COUNT)
-          setData({ page: saved.page, bookmarks: Array.isArray(saved.bookmarks) ? saved.bookmarks : [], days: saved.days ?? {}, lastReadAt: saved.lastReadAt ?? null });
+          setData({ page: saved.page, bookmarks: Array.isArray(saved.bookmarks) ? saved.bookmarks : [], highlights: Array.isArray(saved.highlights) ? saved.highlights : [], days: saved.days ?? {}, lastReadAt: saved.lastReadAt ?? null });
       } catch { /* Damaged local state starts at page one. */ }
       setReady(true);
     }).catch(() => { if (active) setReady(true); });
@@ -60,12 +60,32 @@ export default function QuranScreen() {
   useEffect(() => {
     if (!reading || !allowed) return;
     let active = true;
-    setPageUri(null); setPageError(false);
+    setRawSvg(null); setPageError(false);
     getMushafPage(data.page).then(svg => {
-      if (active) setPageUri(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+      if (active) setRawSvg(svg);
     }).catch(() => { if (active) setPageError(true); });
     return () => { active = false; };
   }, [reading, allowed, data.page, retry]);
+
+  const ayahs = useMemo(() => {
+    if (!rawSvg) return [] as string[];
+    const keys = [...rawSvg.matchAll(/<path class="ayahPolygon"[^>]*>/g)].map(([tag]) => {
+      const surah = tag.match(/surah="(\d+)"/)?.[1];
+      const ayah = tag.match(/ayah="(\d+)"/)?.[1];
+      return surah && ayah ? `${Number(surah)}:${Number(ayah)}` : null;
+    });
+    return [...new Set(keys.filter((key): key is string => Boolean(key)))];
+  }, [rawSvg]);
+  const pageUri = useMemo(() => {
+    if (!rawSvg) return null;
+    const selected = new Set(data.highlights);
+    const rendered = rawSvg.replace(/<path class="ayahPolygon"[^>]*>/g, tag => {
+      const surah = tag.match(/surah="(\d+)"/)?.[1], ayah = tag.match(/ayah="(\d+)"/)?.[1];
+      return surah && ayah && selected.has(`${Number(surah)}:${Number(ayah)}`)
+        ? tag.replace('fill-opacity="0"', 'fill="#15705D" fill-opacity="0.35"') : tag;
+    });
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rendered)}`;
+  }, [rawSvg, data.highlights]);
 
   const button = (text: string, onPress: () => void, primary = false) =>
     <TouchableOpacity accessibilityRole="button" onPress={onPress} style={[styles.button, primary && styles.primary]}><Text style={[styles.buttonText, primary && styles.white]}>{text}</Text></TouchableOpacity>;
@@ -87,6 +107,7 @@ export default function QuranScreen() {
       {showIndex === 'surah' && <View style={styles.card}>{SURAHS.map(surah => <TouchableOpacity key={surah.n} style={styles.row} onPress={() => go(surah.p)}><Text>{surah.n}. {ar ? surah.a : surah.e} · {label('صفحة', 'Page')} {surah.p}</Text></TouchableOpacity>)}</View>}
     </ScrollView> : <View style={styles.reader}>
       <View style={styles.toolbar}><Text style={styles.heading}>{label('الجزء', 'Juz')} {juz(data.page)} · {label('صفحة', 'Page')} {data.page}</Text><TouchableOpacity onPress={() => save({ ...data, bookmarks: bookmarked ? data.bookmarks.filter(p => p !== data.page) : [...data.bookmarks, data.page] })}><Bookmark size={21} color="#D76743" fill={bookmarked ? '#D76743' : 'none'} /></TouchableOpacity><TouchableOpacity onPress={() => setZoom(Math.max(1, zoom - .2))}><Minus size={21} color="#D76743" /></TouchableOpacity><TouchableOpacity onPress={() => setZoom(Math.min(2.4, zoom + .2))}><Plus size={21} color="#D76743" /></TouchableOpacity></View>
+      {!!ayahs.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ayahStrip} contentContainerStyle={styles.ayahStripInner}><Text style={styles.ayahHint}>{label('تظليل آية:', 'Highlight ayah:')}</Text>{ayahs.map(key => <TouchableOpacity key={key} onPress={() => save({ ...data, highlights: data.highlights.includes(key) ? data.highlights.filter(value => value !== key) : [...data.highlights, key] })} style={[styles.ayahChip, data.highlights.includes(key) && styles.ayahChipSelected]}><Text style={styles.ayahChipText}>{key}</Text></TouchableOpacity>)}</ScrollView>}
       <View style={styles.page} onTouchStart={event => { touchX.current = event.nativeEvent.pageX; }} onTouchEnd={event => { if (touchX.current == null) return; const delta = event.nativeEvent.pageX - touchX.current; touchX.current = null; if (Math.abs(delta) > 75) go(data.page + (delta > 0 ? 1 : -1)); }}>{!pageUri && !pageError && <ActivityIndicator color="#D76743" />}{pageError && button(label('تعذر فتح الصفحة، حاول مجددًا', 'Could not open page. Retry'), () => setRetry(v => v + 1))}{pageUri && (Platform.OS === 'web' ? <Image source={{ uri: pageUri }} resizeMode="contain" style={[styles.image, { transform: [{ scale: zoom }] }]} /> : <WebView key={`${data.page}-${zoom}`} originWhitelist={['*']} source={{ html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:white"><img src="${pageUri}" style="width:${zoom * 100}%;height:auto"/></body></html>` }} style={styles.image} />)}</View>
       <View style={styles.nav}>{button(label('السابق', 'Previous'), () => go(data.page - 1))}{button(label('الفهرس', 'Index'), () => { setReading(false); setShowIndex('surah'); })}{button(label('التالي', 'Next'), () => go(data.page + 1))}</View>
       <View style={styles.nav}><TextInput value={jump} onChangeText={setJump} keyboardType="number-pad" placeholder={label('رقم الصفحة', 'Page number')} style={styles.input} />{button(label('انتقال', 'Go'), () => { go(Number(jump)); setJump(''); })}</View>
@@ -95,5 +116,5 @@ export default function QuranScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#FCFBF7' }, dashboard: { padding: 20, gap: 14, paddingBottom: 40 }, title: { fontSize: 23, fontWeight: '700', color: '#40362C', textAlign: 'center' }, sub: { color: '#796F65', lineHeight: 22, textAlign: 'center' }, note: { padding: 24, color: '#796F65' }, card: { backgroundColor: 'white', borderRadius: 20, borderWidth: 1, borderColor: '#EFE9DC', padding: 18, gap: 9 }, heading: { fontSize: 16, fontWeight: '600', color: '#40362C' }, big: { fontSize: 30, fontWeight: '700', color: '#D76743' }, green: { color: '#34775C' }, row: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: .5, borderBottomColor: '#EAE5DD' }, button: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 13, backgroundColor: '#F0F5EE', alignItems: 'center', justifyContent: 'center' }, primary: { backgroundColor: '#D76743' }, buttonText: { fontSize: 13, fontWeight: '600', color: '#B04B2D' }, white: { color: 'white' }, reader: { flex: 1 }, toolbar: { minHeight: 49, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: 'white' }, page: { flex: 1, justifyContent: 'center', overflow: 'hidden', backgroundColor: 'white' }, image: { width: '100%', height: '100%' }, nav: { flexDirection: 'row', justifyContent: 'space-around', gap: 6, paddingVertical: 6, backgroundColor: 'white' }, input: { minWidth: 110, borderWidth: 1, borderColor: '#EAE5DD', borderRadius: 10, textAlign: 'center' },
+  root: { flex: 1, backgroundColor: '#FCFBF7' }, dashboard: { padding: 20, gap: 14, paddingBottom: 40 }, title: { fontSize: 23, fontWeight: '700', color: '#40362C', textAlign: 'center' }, sub: { color: '#796F65', lineHeight: 22, textAlign: 'center' }, note: { padding: 24, color: '#796F65' }, card: { backgroundColor: 'white', borderRadius: 20, borderWidth: 1, borderColor: '#EFE9DC', padding: 18, gap: 9 }, heading: { fontSize: 16, fontWeight: '600', color: '#40362C' }, big: { fontSize: 30, fontWeight: '700', color: '#D76743' }, green: { color: '#34775C' }, row: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: .5, borderBottomColor: '#EAE5DD' }, button: { minHeight: 44, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 13, backgroundColor: '#F0F5EE', alignItems: 'center', justifyContent: 'center' }, primary: { backgroundColor: '#D76743' }, buttonText: { fontSize: 13, fontWeight: '600', color: '#B04B2D' }, white: { color: 'white' }, reader: { flex: 1 }, toolbar: { minHeight: 49, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: 'white' }, ayahStrip: { flexGrow: 0, maxHeight: 48, backgroundColor: '#F9F7F2' }, ayahStripInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10 }, ayahHint: { color: '#796F65', fontSize: 11 }, ayahChip: { borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5, backgroundColor: '#E9F2E9' }, ayahChipSelected: { backgroundColor: '#B9DFC9' }, ayahChipText: { color: '#295C48', fontSize: 12 }, page: { flex: 1, justifyContent: 'center', overflow: 'hidden', backgroundColor: 'white' }, image: { width: '100%', height: '100%' }, nav: { flexDirection: 'row', justifyContent: 'space-around', gap: 6, paddingVertical: 6, backgroundColor: 'white' }, input: { minWidth: 110, borderWidth: 1, borderColor: '#EAE5DD', borderRadius: 10, textAlign: 'center' },
 });
