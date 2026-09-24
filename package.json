@@ -8,9 +8,11 @@
   },
   "scripts": {
     "dev": "expo start",
-    "build:web": "expo export --platform web",
+    "build:web": "expo export --platform web && node scripts/build-web-offline.cjs",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:quran": "node scripts/verify-quran-assets.cjs",
+    "verify:web-offline": "node scripts/verify-web-offline.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/cairo": "^0.4.2",

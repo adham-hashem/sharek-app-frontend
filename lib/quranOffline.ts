@@ -47,9 +47,14 @@ async function loadArchive(index: number) {
   if (pending) return pending;
   const load = (async () => {
     const asset = await Asset.fromModule(PAGE_ARCHIVES[index]).downloadAsync();
-    const bytes = Platform.OS === 'web'
-      ? new Uint8Array(await (await fetch(asset.uri)).arrayBuffer())
-      : await new File(asset.localUri ?? asset.uri).bytes();
+    let bytes: Uint8Array;
+    if (Platform.OS === 'web') {
+      const response = await fetch(asset.uri).catch(() => caches.match(asset.uri));
+      if (!response?.ok) throw new Error('Mushaf page is not available offline');
+      bytes = new Uint8Array(await response.arrayBuffer());
+    } else {
+      bytes = await new File(asset.localUri ?? asset.uri).bytes();
+    }
     const pages = unzipSync(bytes);
     cachedArchives.set(index, pages);
     // Keep only the current chunk resident on memory-limited phones.
